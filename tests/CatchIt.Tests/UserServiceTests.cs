@@ -220,6 +220,31 @@ public class UserServiceTests : IDisposable
         Assert.True(result.User!.IsConfirmed);
     }
 
+    // ---- Guests ----
+
+    [Fact]
+    public void Login_FromGuestSession_ReplacesGuestWithUser()
+    {
+        _users.Register(GoodEmail, GoodPassword);
+        _session.EnterGuestMode();
+
+        _users.Login(GoodEmail, GoodPassword);
+
+        Assert.True(_session.IsLoggedIn);
+        Assert.False(_session.IsGuest);
+    }
+
+    [Fact]
+    public void FailedLogin_FromGuestSession_StaysGuest()
+    {
+        _session.EnterGuestMode();
+
+        _users.Login(GoodEmail, "WrongPass1");
+
+        Assert.True(_session.IsGuest);
+        Assert.False(_session.IsLoggedIn);
+    }
+
     // ---- Logout (story #17) ----
 
     [Fact]
