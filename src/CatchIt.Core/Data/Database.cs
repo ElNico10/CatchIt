@@ -33,9 +33,14 @@ public class Database
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
 
         using var conn = Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = Schema;
-        cmd.ExecuteNonQuery();
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = Schema;
+            cmd.ExecuteNonQuery();
+        }
+
+        // The price extremes table and the product search index (also added to existing databases).
+        SearchAndPricingSchema.Ensure(conn);
     }
 
     private const string Schema = """
