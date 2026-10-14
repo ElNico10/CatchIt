@@ -7,10 +7,17 @@ namespace CatchIt.App;
 /// Access.Check whether the current session may use it, so guest and
 /// logged-in behaviour can be tried out before the real screens exist.
 /// </summary>
+/// <remarks>
+/// The window has three stacked panels: the top bar (who is logged in and the Logout / Log in
+/// button), the confirmation banner (shown only for unconfirmed accounts), and the content area
+/// with the feature buttons. The content panel fills whatever space the banner leaves, so the
+/// buttons move down when the banner appears.
+/// </remarks>
 public partial class MainForm : Form
 {
     private readonly UserService _users;
     private readonly Session _session;
+    private readonly ConfirmationService _confirmation;
 
     /// <summary>
     /// True when the form closed because the user logged out (or chose to log in from
@@ -18,14 +25,23 @@ public partial class MainForm : Form
     /// </summary>
     public bool ReturnToLogin { get; private set; }
 
-    public MainForm(UserService users, Session session)
+    /// <summary>Creates the main window for the current session.</summary>
+    /// <param name="users">Used to log the user out.</param>
+    /// <param name="session">Decides what the window shows and which features are allowed.</param>
+    /// <param name="confirmation">Used by the banner to request and check confirmation codes.</param>
+    public MainForm(UserService users, Session session, ConfirmationService confirmation)
     {
         _users = users;
         _session = session;
+        _confirmation = confirmation;
         InitializeComponent();
         ShowSessionState();
     }
 
+    /// <summary>
+    /// Updates the top bar, the Logout / Log in button, the guest note and the confirmation
+    /// banner to match the current session. Call it again after the session changes.
+    /// </summary>
     private void ShowSessionState()
     {
         if (_session.IsLoggedIn)
@@ -39,12 +55,45 @@ public partial class MainForm : Form
         }
         else
         {
+            // A guest has no account to log out of, so the same button offers to log in instead.
             lblUser.Text = "Browsing as a guest";
             btnLogout.Text = "Log in";
             lblGuestNote.Visible = true;
         }
+
+        // Unconfirmed accounts see a banner but can keep using the app.
+        pnlBanner.Visible = _session.NeedsConfirmation;
     }
 
+    /// <summary>
+    /// Banner button: sends a confirmation code, then asks the user to enter it.
+    /// </summary>
+    private void btnConfirm_Click(object? sender, EventArgs e)
+    {
+        // Requesting the code also "delivers" it, which shows the simulated email window.
+        var request = _confirmation.RequestCode();
+        if (!request.Success)
+        {
+            // For example, the account was confirmed in the meantime; refresh so the banner goes away.
+            MessageBox.Show(this, request.Error, "Confirm account", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ShowSessionState();
+            return;
+        }
+
+        using var confirm = new ConfirmForm(_confirmation, _session.CurrentUser!.Email);
+        if (confirm.ShowDialog(this) == DialogResult.OK)
+        {
+            // The session now holds the confirmed user, so this hides the banner.
+            ShowSessionState();
+            MessageBox.Show(this, "Your account is confirmed.", "Confirm account",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+    }
+
+    /// <summary>
+    /// Top-bar button. Logs a registered user out, or sends a guest to the login form,
+    /// by ending the session and closing this window so the login form can reopen.
+    /// </summary>
     private void btnLogout_Click(object? sender, EventArgs e)
     {
         _users.Logout();
@@ -52,11 +101,18 @@ public partial class MainForm : Form
         Close();
     }
 
+    // The four feature buttons all go through OpenFeature so the access rules live in one place.
     private void btnSearch_Click(object? sender, EventArgs e) => OpenFeature(Feature.Search, "Product search");
     private void btnWatchlist_Click(object? sender, EventArgs e) => OpenFeature(Feature.Watchlist, "Watchlist");
     private void btnDashboard_Click(object? sender, EventArgs e) => OpenFeature(Feature.Dashboard, "Dashboard");
     private void btnProfile_Click(object? sender, EventArgs e) => OpenFeature(Feature.Profile, "Profile");
 
+    /// <summary>
+    /// Opens a feature if the current session may use it; otherwise explains why not and,
+    /// if the user agrees, returns to the login form.
+    /// </summary>
+    /// <param name="feature">The feature being opened, checked against <see cref="Access"/>.</param>
+    /// <param name="name">Display name used in the message box titles.</param>
     private void OpenFeature(Feature feature, string name)
     {
         var access = Access.Check(_session, feature);
