@@ -58,29 +58,29 @@ public class LiveSearchControllerTests
     /// <summary>Collects everything a controller raises, so tests can wait for it or check that nothing came.</summary>
     private sealed class Recorder
     {
-        private readonly BlockingCollection<LiveSearchResult> _results = new();
+        private readonly BlockingCollection<LiveSearchResult<SearchPage>> _results = new();
         public ConcurrentQueue<Exception> Failures { get; } = new();
         public ConcurrentQueue<int> ThreadIds { get; } = new();
 
-        public Recorder(LiveSearchController controller)
+        public Recorder(LiveSearchController<SearchPage> controller)
         {
             controller.ResultsReady += (_, r) => { ThreadIds.Enqueue(Environment.CurrentManagedThreadId); _results.Add(r); };
             controller.SearchFailed += (_, ex) => Failures.Enqueue(ex);
         }
 
-        public LiveSearchResult Next() =>
+        public LiveSearchResult<SearchPage> Next() =>
             _results.TryTake(out var result, Patience) ? result : throw new TimeoutException("No search results arrived in time.");
 
         /// <summary>True if no further result arrives during a short quiet period.</summary>
         public bool NothingMoreComes() => !_results.TryTake(out _, QuietPeriod);
     }
 
-    private static (LiveSearchController Controller, FakeSearch Quick, FakeSearch Full, Recorder Recorder) Make(
+    private static (LiveSearchController<SearchPage> Controller, FakeSearch Quick, FakeSearch Full, Recorder Recorder) Make(
         bool gated = true, TimeSpan? debounce = null)
     {
         var quick = new FakeSearch { Gated = gated };
         var full = new FakeSearch { Gated = gated };
-        var controller = new LiveSearchController(quick.Run, full.Run, debounce ?? Debounce);
+        var controller = new LiveSearchController<SearchPage>(quick.Run, full.Run, debounce ?? Debounce);
         return (controller, quick, full, new Recorder(controller));
     }
 
@@ -314,7 +314,7 @@ public class LiveSearchControllerTests
     public void Results_AreRaisedOnTheThreadTheControllerWasCreatedOn()
     {
         using var ui = new SingleThreadContext();
-        LiveSearchController? controller = null;
+        LiveSearchController<SearchPage>? controller = null;
         Recorder? recorder = null;
         var created = new ManualResetEventSlim();
 
@@ -322,7 +322,7 @@ public class LiveSearchControllerTests
         ui.Post(_ =>
         {
             SynchronizationContext.SetSynchronizationContext(ui);
-            controller = new LiveSearchController(new FakeSearch { Gated = false }.Run, new FakeSearch { Gated = false }.Run, Debounce);
+            controller = new LiveSearchController<SearchPage>(new FakeSearch { Gated = false }.Run, new FakeSearch { Gated = false }.Run, Debounce);
             recorder = new Recorder(controller);
             created.Set();
         }, null);
