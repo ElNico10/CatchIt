@@ -82,13 +82,8 @@ public class Database
             UNIQUE (ProductId, MarketplaceId)
         );
 
-        CREATE TABLE IF NOT EXISTS PriceHistory (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ListingId INTEGER NOT NULL REFERENCES Listings(Id),
-            Date TEXT NOT NULL,
-            Price REAL NOT NULL CHECK (Price > 0),
-            UNIQUE (ListingId, Date)
-        );
+        -- The PriceHistory table (compact weekly history) is created in SearchAndPricingSchema,
+        -- which also upgrades databases that still have the older, larger layout.
 
         -- Manually curated "cheaper alternative" mapping (no automatic similarity).
         CREATE TABLE IF NOT EXISTS Alternatives (
