@@ -1,5 +1,6 @@
 using CatchIt.Core.Auth;
 using CatchIt.Core.Data;
+using CatchIt.Core.Search;
 
 namespace CatchIt.App;
 
@@ -39,6 +40,8 @@ static class Program
         var session = new Session();
         var users = new UserService(db, session);
         var confirmation = new ConfirmationService(db, session, DeliverSimulatedEmail);
+        var profile = new ProfileService(db, session);
+        var listingSearch = new ListingSearchService(db);
 
         // Login -> main window. Logging out (or choosing to log in from guest mode)
         // comes back to the login form; closing either window exits the app.
@@ -48,7 +51,7 @@ static class Program
             if (login.ShowDialog() != DialogResult.OK)
                 break;
 
-            using var main = new MainForm(users, session, confirmation);
+            using var main = new MainForm(users, session, confirmation, profile, listingSearch);
             main.ShowDialog();
             if (!main.ReturnToLogin)
                 break;

@@ -1,11 +1,12 @@
 using CatchIt.Core.Auth;
+using CatchIt.Core.Search;
 
 namespace CatchIt.App;
 
 /// <summary>
-/// Main window shell. The feature buttons are placeholders: each one asks
-/// Access.Check whether the current session may use it, so guest and
-/// logged-in behaviour can be tried out before the real screens exist.
+/// Main window hub. Each feature button asks Access.Check whether the current session may
+/// use it, then opens that feature's screen in its own window. Search, watchlist and
+/// dashboard are still placeholders; the profile screen already works.
 /// </summary>
 /// <remarks>
 /// The window has three stacked panels: the top bar (who is logged in and the Logout / Log in
@@ -18,6 +19,8 @@ public partial class MainForm : Form
     private readonly UserService _users;
     private readonly Session _session;
     private readonly ConfirmationService _confirmation;
+    private readonly ProfileService _profile;
+    private readonly ListingSearchService _listingSearch;
 
     /// <summary>
     /// True when the form closed because the user logged out (or chose to log in from
@@ -29,11 +32,16 @@ public partial class MainForm : Form
     /// <param name="users">Used to log the user out.</param>
     /// <param name="session">Decides what the window shows and which features are allowed.</param>
     /// <param name="confirmation">Used by the banner to request and check confirmation codes.</param>
-    public MainForm(UserService users, Session session, ConfirmationService confirmation)
+    /// <param name="profile">Handed to the profile screen so it can save name and email changes.</param>
+    /// <param name="listingSearch">Handed to the search screen so it can find products and their prices.</param>
+    public MainForm(UserService users, Session session, ConfirmationService confirmation, ProfileService profile,
+        ListingSearchService listingSearch)
     {
+        _listingSearch = listingSearch;
         _users = users;
         _session = session;
         _confirmation = confirmation;
+        _profile = profile;
         InitializeComponent();
         ShowSessionState();
     }
@@ -102,18 +110,26 @@ public partial class MainForm : Form
     }
 
     // The four feature buttons all go through OpenFeature so the access rules live in one place.
-    private void btnSearch_Click(object? sender, EventArgs e) => OpenFeature(Feature.Search, "Product search");
-    private void btnWatchlist_Click(object? sender, EventArgs e) => OpenFeature(Feature.Watchlist, "Watchlist");
-    private void btnDashboard_Click(object? sender, EventArgs e) => OpenFeature(Feature.Dashboard, "Dashboard");
-    private void btnProfile_Click(object? sender, EventArgs e) => OpenFeature(Feature.Profile, "Profile");
+    private void btnSearch_Click(object? sender, EventArgs e) =>
+        OpenFeature(Feature.Search, "Product search", () => new SearchForm(_listingSearch));
+    private void btnWatchlist_Click(object? sender, EventArgs e) =>
+        OpenFeature(Feature.Watchlist, "Watchlist", () => new WatchlistForm());
+    private void btnDashboard_Click(object? sender, EventArgs e) =>
+        OpenFeature(Feature.Dashboard, "Dashboard", () => new DashboardForm());
+    private void btnProfile_Click(object? sender, EventArgs e) =>
+        OpenFeature(Feature.Profile, "Profile", () => new ProfileForm(_profile, _session));
 
     /// <summary>
-    /// Opens a feature if the current session may use it; otherwise explains why not and,
-    /// if the user agrees, returns to the login form.
+    /// Opens a feature's screen if the current session may use it; otherwise explains why not
+    /// and, if the user agrees, returns to the login form.
     /// </summary>
     /// <param name="feature">The feature being opened, checked against <see cref="Access"/>.</param>
     /// <param name="name">Display name used in the message box titles.</param>
-    private void OpenFeature(Feature feature, string name)
+    /// <param name="createScreen">
+    /// Creates the screen. Only called once access is allowed, so a screen that assumes a
+    /// logged-in user (like the profile) is never built for a guest.
+    /// </param>
+    private void OpenFeature(Feature feature, string name, Func<Form> createScreen)
     {
         var access = Access.Check(_session, feature);
 
@@ -132,7 +148,11 @@ public partial class MainForm : Form
             return;
         }
 
-        // Real screens are not built yet.
-        MessageBox.Show(this, $"{name} is coming soon.", name, MessageBoxButtons.OK, MessageBoxIcon.Information);
+        using (var screen = createScreen())
+            screen.ShowDialog(this);
+
+        // A screen may have changed the session (the profile screen updates the name and email),
+        // so refresh the top bar once it closes.
+        ShowSessionState();
     }
 }

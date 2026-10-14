@@ -10,7 +10,12 @@ public class Database
     public Database(string dbPath)
     {
         _path = Path.GetFullPath(dbPath);
-        _connectionString = $"Data Source={_path}";
+
+        // Pooling is off: a SQLite connection is cheap to open (tens of microseconds), and pooling
+        // keeps connections and file handles alive in a process-wide cache. That cache can keep the
+        // database file locked after the app has finished with it, and clearing it while other threads
+        // are opening connections can fail. Without it, closing a connection really closes the file.
+        _connectionString = $"Data Source={_path};Pooling=False";
     }
 
     public static string DefaultPath => Path.Combine(
@@ -33,9 +38,14 @@ public class Database
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
 
         using var conn = Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = Schema;
-        cmd.ExecuteNonQuery();
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = Schema;
+            cmd.ExecuteNonQuery();
+        }
+
+        // The price extremes table and the product search index (also added to existing databases).
+        SearchAndPricingSchema.Ensure(conn);
     }
 
     private const string Schema = """
@@ -77,13 +87,8 @@ public class Database
             UNIQUE (ProductId, MarketplaceId)
         );
 
-        CREATE TABLE IF NOT EXISTS PriceHistory (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ListingId INTEGER NOT NULL REFERENCES Listings(Id),
-            Date TEXT NOT NULL,
-            Price REAL NOT NULL CHECK (Price > 0),
-            UNIQUE (ListingId, Date)
-        );
+        -- The PriceHistory table (compact weekly history) is created in SearchAndPricingSchema,
+        -- which also upgrades databases that still have the older, larger layout.
 
         -- Manually curated "cheaper alternative" mapping (no automatic similarity).
         CREATE TABLE IF NOT EXISTS Alternatives (
