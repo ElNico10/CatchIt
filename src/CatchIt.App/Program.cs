@@ -1,3 +1,4 @@
+using CatchIt.Core.Auth;
 using CatchIt.Core.Data;
 
 namespace CatchIt.App;
@@ -25,6 +26,22 @@ static class Program
 
         db.Initialize();
         ApplicationConfiguration.Initialize();
-        Application.Run(new Form1());
+
+        var session = new Session();
+        var users = new UserService(db, session);
+
+        // Login -> main window. Logging out (or choosing to log in from guest mode)
+        // comes back to the login form; closing either window exits the app.
+        while (true)
+        {
+            using var login = new LoginForm(users, session);
+            if (login.ShowDialog() != DialogResult.OK)
+                break;
+
+            using var main = new MainForm(users, session);
+            main.ShowDialog();
+            if (!main.ReturnToLogin)
+                break;
+        }
     }
 }
