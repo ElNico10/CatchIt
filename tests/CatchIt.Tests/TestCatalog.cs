@@ -19,13 +19,14 @@ internal static class TestCatalog
     }
 
     /// <summary>Adds a listing for a product on a marketplace (created if needed) and returns the listing's id.</summary>
-    public static long AddListing(Database db, long productId, string marketplace = "TestMarket", double? currentPrice = 50.0)
+    public static long AddListing(Database db, long productId, string marketplace = "TestMarket", double? currentPrice = 50.0,
+        double sellerRating = 4.0)
     {
         using var conn = db.Open();
         Exec(conn, "INSERT OR IGNORE INTO Marketplaces (Name) VALUES ($n)", ("$n", marketplace));
         Exec(conn, "INSERT INTO Listings (ProductId, MarketplaceId, SellerRating, CurrentPrice) " +
-                   "VALUES ($p, (SELECT Id FROM Marketplaces WHERE Name = $m), 4.0, $c)",
-            ("$p", productId), ("$m", marketplace), ("$c", (object?)currentPrice ?? DBNull.Value));
+                   "VALUES ($p, (SELECT Id FROM Marketplaces WHERE Name = $m), $r, $c)",
+            ("$p", productId), ("$m", marketplace), ("$r", sellerRating), ("$c", (object?)currentPrice ?? DBNull.Value));
         return Scalar(conn, "SELECT last_insert_rowid()");
     }
 

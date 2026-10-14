@@ -1,4 +1,5 @@
 using CatchIt.Core.Auth;
+using CatchIt.Core.Search;
 
 namespace CatchIt.App;
 
@@ -19,6 +20,7 @@ public partial class MainForm : Form
     private readonly Session _session;
     private readonly ConfirmationService _confirmation;
     private readonly ProfileService _profile;
+    private readonly ListingSearchService _listingSearch;
 
     /// <summary>
     /// True when the form closed because the user logged out (or chose to log in from
@@ -31,8 +33,11 @@ public partial class MainForm : Form
     /// <param name="session">Decides what the window shows and which features are allowed.</param>
     /// <param name="confirmation">Used by the banner to request and check confirmation codes.</param>
     /// <param name="profile">Handed to the profile screen so it can save name and email changes.</param>
-    public MainForm(UserService users, Session session, ConfirmationService confirmation, ProfileService profile)
+    /// <param name="listingSearch">Handed to the search screen so it can find products and their prices.</param>
+    public MainForm(UserService users, Session session, ConfirmationService confirmation, ProfileService profile,
+        ListingSearchService listingSearch)
     {
+        _listingSearch = listingSearch;
         _users = users;
         _session = session;
         _confirmation = confirmation;
@@ -106,7 +111,7 @@ public partial class MainForm : Form
 
     // The four feature buttons all go through OpenFeature so the access rules live in one place.
     private void btnSearch_Click(object? sender, EventArgs e) =>
-        OpenFeature(Feature.Search, "Product search", () => new SearchForm());
+        OpenFeature(Feature.Search, "Product search", () => new SearchForm(_listingSearch));
     private void btnWatchlist_Click(object? sender, EventArgs e) =>
         OpenFeature(Feature.Watchlist, "Watchlist", () => new WatchlistForm());
     private void btnDashboard_Click(object? sender, EventArgs e) =>

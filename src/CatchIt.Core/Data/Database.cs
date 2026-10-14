@@ -10,7 +10,12 @@ public class Database
     public Database(string dbPath)
     {
         _path = Path.GetFullPath(dbPath);
-        _connectionString = $"Data Source={_path}";
+
+        // Pooling is off: a SQLite connection is cheap to open (tens of microseconds), and pooling
+        // keeps connections and file handles alive in a process-wide cache. That cache can keep the
+        // database file locked after the app has finished with it, and clearing it while other threads
+        // are opening connections can fail. Without it, closing a connection really closes the file.
+        _connectionString = $"Data Source={_path};Pooling=False";
     }
 
     public static string DefaultPath => Path.Combine(

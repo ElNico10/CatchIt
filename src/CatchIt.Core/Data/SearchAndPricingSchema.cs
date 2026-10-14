@@ -15,6 +15,11 @@ internal static class SearchAndPricingSchema
 {
     private const string SearchTable = "ProductSearch";
 
+    // Lets the search screen list the cheapest listings in the whole catalog (no search text) by reading
+    // them in price order and stopping early, instead of sorting every listing.
+    private const string ListingPriceIndex =
+        "CREATE INDEX IF NOT EXISTS Listings_CurrentPrice ON Listings(CurrentPrice);";
+
     /// <summary>
     /// The price history table. The (listing, date) pair is the primary key and the table is stored
     /// directly in that key's order (<c>WITHOUT ROWID</c>), so there is no separate id column or second
@@ -79,6 +84,7 @@ internal static class SearchAndPricingSchema
         using (var tx = conn.BeginTransaction())
         {
             Run(conn, tx, PriceExtremesTable);
+            Run(conn, tx, ListingPriceIndex);
             migratedHistory = EnsurePriceHistory(conn, tx);
 
             var searchExists = Convert.ToInt64(Scalar(conn, tx,
