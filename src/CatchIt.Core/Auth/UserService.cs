@@ -10,6 +10,13 @@ public class UserService
     public const string ConfirmationMessage =
         "Account created. It is not confirmed yet; confirm it from the banner after you log in.";
 
+
+    public const string ChangePasswordLoginRequiredMessage = "Please log in to change your password";
+    public const string CurrentPasswordIncorrectMessage = "Current password is incorrect";
+    public const string PasswordsDoNotMatchMessage = "New passwords do not match";
+    public const string PasswordUnchangedMessage = "New password must be different from your current password";
+    public const string PasswordChangedMessage = "Your password has been changed";
+
     private const int SqliteConstraintError = 19;
 
     private readonly Database _db;
@@ -76,4 +83,62 @@ public class UserService
     }
 
     public void Logout() => _session.SignOut();
+
+
+   
+    /// Changes the logged-in user's password (story #16, "Change password with valid data").
+    /// The change is only made when the user is logged in, proves who they are with their
+    /// current password, types the new password the same way twice, and the new password
+    /// meets the same rules as registration and differs from the old one.
+    
+    public AuthResult ChangePassword(string? currentPassword, string? newPassword, string? confirmNewPassword)
+    {
+        var user = _session.CurrentUser;
+        if (user == null)
+            return AuthResult.Fail(ChangePasswordLoginRequiredMessage);
+
+        using var conn = _db.Open();
+
+        string? storedHash;
+        using (var select = conn.CreateCommand())
+        {
+            select.CommandText = "SELECT PasswordHash FROM Users WHERE Id = $id";
+            select.Parameters.AddWithValue("$id", user.Id);
+            storedHash = select.ExecuteScalar() as string;
+        }
+
+        // The account no longer exists, so the session is stale.
+        if (storedHash == null)
+        {
+            _session.SignOut();
+            return AuthResult.Fail(ChangePasswordLoginRequiredMessage);
+        }
+
+        if (string.IsNullOrEmpty(currentPassword) || !BCrypt.Net.BCrypt.Verify(currentPassword, storedHash))
+            return AuthResult.Fail(CurrentPasswordIncorrectMessage);
+
+        if (!Validation.IsValidPassword(newPassword))
+            return AuthResult.Fail(Validation.PasswordRequirementsMessage);
+
+        if (newPassword != confirmNewPassword)
+            return AuthResult.Fail(PasswordsDoNotMatchMessage);
+
+        if (newPassword == currentPassword)
+            return AuthResult.Fail(PasswordUnchangedMessage);
+
+        var newHash = BCrypt.Net.BCrypt.HashPassword(newPassword!, Seeder.BcryptCost);
+
+        using (var update = conn.CreateCommand())
+        {
+            // Clearing ResetToken cancels any password-reset link that was issued before this change.
+            update.CommandText = "UPDATE Users SET PasswordHash = $h, ResetToken = NULL WHERE Id = $id";
+            update.Parameters.AddWithValue("$h", newHash);
+            update.Parameters.AddWithValue("$id", user.Id);
+            update.ExecuteNonQuery();
+        }
+
+        return AuthResult.Ok(user);
+    }
+
+
 }
