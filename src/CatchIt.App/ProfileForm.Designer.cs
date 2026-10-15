@@ -32,6 +32,7 @@ partial class ProfileForm
         lblConfirmPassword = new Label();
         txtConfirmPassword = new TextBox();
         btnChangePassword = new Button();
+        lblPasswordStatus = new Label();
         btnClose = new Button();
         grpPassword.SuspendLayout();
         SuspendLayout();
@@ -105,13 +106,13 @@ partial class ProfileForm
         grpPassword.Controls.Add(lblConfirmPassword);
         grpPassword.Controls.Add(txtConfirmPassword);
         grpPassword.Controls.Add(btnChangePassword);
-        grpPassword.Enabled = false;
+        grpPassword.Controls.Add(lblPasswordStatus);
         grpPassword.Location = new Point(32, 246);
         grpPassword.Name = "grpPassword";
-        grpPassword.Size = new Size(356, 214);
+        grpPassword.Size = new Size(356, 252);
         grpPassword.TabIndex = 3;
         grpPassword.TabStop = false;
-        grpPassword.Text = "Change password (coming soon)";
+        grpPassword.Text = "Change password";
         //
         // lblCurrent
         //
@@ -172,11 +173,19 @@ partial class ProfileForm
         btnChangePassword.TabIndex = 6;
         btnChangePassword.Text = "Change password";
         btnChangePassword.UseVisualStyleBackColor = true;
+        btnChangePassword.Click += btnChangePassword_Click;
+        //
+        // lblPasswordStatus
+        //
+        lblPasswordStatus.Location = new Point(12, 208);
+        lblPasswordStatus.Name = "lblPasswordStatus";
+        lblPasswordStatus.Size = new Size(332, 34);
+        lblPasswordStatus.TabIndex = 7;
         //
         // btnClose
         //
         btnClose.DialogResult = DialogResult.Cancel;
-        btnClose.Location = new Point(32, 476);
+        btnClose.Location = new Point(32, 514);
         btnClose.Name = "btnClose";
         btnClose.Size = new Size(356, 32);
         btnClose.TabIndex = 4;
@@ -189,7 +198,7 @@ partial class ProfileForm
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
         CancelButton = btnClose;
-        ClientSize = new Size(420, 528);
+        ClientSize = new Size(420, 566);
         Controls.Add(lblTitle);
         Controls.Add(lblName);
         Controls.Add(txtName);
@@ -219,6 +228,7 @@ partial class ProfileForm
     private Label lblEmail;
     private TextBox txtEmail;
     private Label lblStatus;
+    private Label lblPasswordStatus;
     private Button btnSave;
     private GroupBox grpPassword;
     private Label lblCurrent;

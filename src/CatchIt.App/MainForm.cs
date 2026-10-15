@@ -117,7 +117,7 @@ public partial class MainForm : Form
     private void btnDashboard_Click(object? sender, EventArgs e) =>
         OpenFeature(Feature.Dashboard, "Dashboard", () => new DashboardForm());
     private void btnProfile_Click(object? sender, EventArgs e) =>
-        OpenFeature(Feature.Profile, "Profile", () => new ProfileForm(_profile, _session));
+        OpenFeature(Feature.Profile, "Profile", () => new ProfileForm(_profile, _users, _session));
 
     /// <summary>
     /// Opens a feature's screen if the current session may use it; otherwise explains why not
