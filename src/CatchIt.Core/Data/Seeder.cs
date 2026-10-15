@@ -23,6 +23,9 @@ public class Seeder
 
     private static readonly string[] Marketplaces = { "ShopMart", "BargainBay", "MegaStore", "QuickBuy" };
 
+    /// <summary>The demo marketplace names, shared with <see cref="BulkImporter"/>.</summary>
+    internal static IReadOnlyList<string> MarketplaceNames => Marketplaces;
+
     private static readonly (string Name, int Tier)[] Brands =
     {
         ("Apex", 3), ("Zenith", 3), ("Orbit", 2), ("Pioneer", 2), ("ValueTech", 1), ("Generic", 1),
@@ -101,9 +104,12 @@ public class Seeder
     private void SeedListingsAndHistory(SqliteConnection conn, SqliteTransaction tx)
     {
         var products = Query(conn, tx, "SELECT Id, Name FROM Products");
-        var marketplaces = Query(conn, tx, "SELECT Id, Name FROM Marketplaces");
+        var marketplaceIds = Query(conn, tx, "SELECT Id, Name FROM Marketplaces").Select(m => m.Id).ToList();
         var basePrices = Products.ToDictionary(p => p.Name, p => p.Price);
-        var today = DateTime.Today;
+
+        // Listings, simulated seasonal history (weekly points plus the absolute low and high)
+        // and the price extremes are all created by the shared writer, as in a bulk import.
+        using var writer = new ListingWriter(conn, tx, _rng, DateOnly.FromDateTime(DateTime.Today), HistoryDays, marketplaceIds);
 
         foreach (var (productId, productName) in products)
         {
@@ -111,30 +117,7 @@ public class Seeder
             if (Scalar(conn, tx, "SELECT COUNT(*) FROM Listings WHERE ProductId = $p", ("$p", productId)) > 0)
                 continue;
 
-            var basePrice = basePrices[productName];
-
-            // Not every marketplace carries every product, so some products have a single listing.
-            var carriedBy = marketplaces.Where(_ => _rng.NextDouble() < 0.75).ToList();
-            if (carriedBy.Count == 0) carriedBy.Add(marketplaces[0]);
-
-            foreach (var (marketId, _) in carriedBy)
-            {
-                var rating = Math.Round(2.5 + _rng.NextDouble() * 2.5, 1);
-                var price = Math.Round(basePrice * (0.9 + _rng.NextDouble() * 0.2), 2);
-
-                Exec(conn, tx,
-                    "INSERT INTO Listings (ProductId, MarketplaceId, SellerRating, CurrentPrice) VALUES ($p, $m, $r, $c)",
-                    ("$p", productId), ("$m", marketId), ("$r", rating), ("$c", price));
-                var listingId = Scalar(conn, tx, "SELECT last_insert_rowid()");
-
-                for (var d = HistoryDays; d >= 1; d--)
-                {
-                    var histPrice = Math.Round(price * (0.85 + _rng.NextDouble() * 0.3), 2);
-                    Exec(conn, tx,
-                        "INSERT OR IGNORE INTO PriceHistory (ListingId, Date, Price) VALUES ($l, $d, $p)",
-                        ("$l", listingId), ("$d", today.AddDays(-d).ToString("yyyy-MM-dd")), ("$p", histPrice));
-                }
-            }
+            writer.AddListingsForProduct(productId, basePrices[productName]);
         }
     }
 
