@@ -86,6 +86,7 @@ internal static class SearchAndPricingSchema
             Run(conn, tx, PriceExtremesTable);
             Run(conn, tx, ListingPriceIndex);
             migratedHistory = EnsurePriceHistory(conn, tx);
+            EnsureProductColumns(conn, tx);
 
             var searchExists = Convert.ToInt64(Scalar(conn, tx,
                 $"SELECT COUNT(*) FROM sqlite_master WHERE name = '{SearchTable}'")) > 0;
@@ -99,6 +100,28 @@ internal static class SearchAndPricingSchema
 
         if (migratedHistory)
             ReclaimSpace(conn);
+    }
+
+    /// <summary>
+    /// Adds the dataset columns (category, typical price, rating, rating count) to a products table
+    /// created before they existed. New databases already have them from the main schema.
+    /// </summary>
+    private static void EnsureProductColumns(SqliteConnection conn, SqliteTransaction tx)
+    {
+        var columns = new (string Name, string Definition)[]
+        {
+            ("Category", "TEXT NOT NULL DEFAULT ''"),
+            ("TypicalPrice", "REAL NULL"),
+            ("AverageRating", "REAL NULL"),
+            ("RatingCount", "INTEGER NULL"),
+        };
+        foreach (var (name, definition) in columns)
+        {
+            var exists = Convert.ToInt64(Scalar(conn, tx,
+                $"SELECT COUNT(*) FROM pragma_table_info('Products') WHERE name = '{name}'")) > 0;
+            if (!exists)
+                Run(conn, tx, $"ALTER TABLE Products ADD COLUMN {name} {definition};");
+        }
     }
 
     /// <summary>

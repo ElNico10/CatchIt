@@ -74,7 +74,11 @@ public class Database
             Id INTEGER PRIMARY KEY AUTOINCREMENT,
             Name TEXT NOT NULL UNIQUE,
             Keywords TEXT NOT NULL DEFAULT '',
-            BrandId INTEGER NOT NULL REFERENCES Brands(Id)
+            BrandId INTEGER NOT NULL REFERENCES Brands(Id),
+            Category TEXT NOT NULL DEFAULT '',
+            TypicalPrice REAL NULL,
+            AverageRating REAL NULL,
+            RatingCount INTEGER NULL
         );
 
         -- One row per product per marketplace. CurrentPrice is NULL when unavailable.

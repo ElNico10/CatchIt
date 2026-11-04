@@ -9,7 +9,12 @@ namespace CatchIt.Core.Data;
 /// <param name="QualityTier">The brand's quality tier, 1 (Budget) to 3 (Premium). Only used when the brand is new.</param>
 /// <param name="Keywords">Extra search words, such as the category. May be empty. The brand is added automatically.</param>
 /// <param name="BasePrice">A typical current price in US dollars, used to build the simulated listings and history.</param>
-public record ImportedProduct(string Name, string Brand, int QualityTier, string Keywords, double BasePrice);
+/// <param name="AverageRating">The product's average review rating (0 to 5), if the source has one.</param>
+/// <param name="RatingCount">How many ratings the average is based on, if the source has it.</param>
+/// <param name="Category">The product's full category path, used to find comparable products. Empty means "never compare".</param>
+public record ImportedProduct(
+    string Name, string Brand, int QualityTier, string Keywords, double BasePrice,
+    double? AverageRating = null, int? RatingCount = null, string Category = "");
 
 /// <summary>What an import did.</summary>
 /// <param name="ProductsAdded">New products created.</param>
@@ -84,10 +89,16 @@ public class BulkImporter
             lastId.Transaction = tx;
             lastId.CommandText = "SELECT last_insert_rowid()";
             insertProduct.Transaction = tx;
-            insertProduct.CommandText = "INSERT OR IGNORE INTO Products (Name, Keywords, BrandId) VALUES ($n, $k, $b)";
+            insertProduct.CommandText = 
+                "INSERT OR IGNORE INTO Products (Name, Keywords, BrandId, Category, TypicalPrice, AverageRating, RatingCount) " +
+                "VALUES ($n, $k, $b, $c, $tp, $ar, $rc)";
             var pName = insertProduct.Parameters.Add("$n", SqliteType.Text);
             var pKeywords = insertProduct.Parameters.Add("$k", SqliteType.Text);
             var pBrand = insertProduct.Parameters.Add("$b", SqliteType.Integer);
+            var pCategory = insertProduct.Parameters.Add("$c", SqliteType.Text);
+            var pPrice = insertProduct.Parameters.Add("$tp", SqliteType.Real);
+            var pRating = insertProduct.Parameters.Add("$ar", SqliteType.Real);
+            var pRatingCount = insertProduct.Parameters.Add("$rc", SqliteType.Integer);
 
             foreach (var product in products)
             {
@@ -98,6 +109,10 @@ public class BulkImporter
                 // The brand is added to the keywords so searching for a brand name finds its products.
                 pKeywords.Value = $"{product.Keywords} {product.Brand}".Trim();
                 pBrand.Value = brandId;
+                pCategory.Value = product.Category.Trim();
+                pPrice.Value = product.BasePrice;
+                pRating.Value = (object?)product.AverageRating ?? DBNull.Value;
+                pRatingCount.Value = (object?)product.RatingCount ?? DBNull.Value;
 
                 // OR IGNORE reports 0 rows changed when the name already exists.
                 if (insertProduct.ExecuteNonQuery() == 0) { skipped++; continue; }
