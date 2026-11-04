@@ -72,15 +72,8 @@ public class PriceHistoryService
     public double? GetAverage(long listingId, int days, DateOnly asOf)
     {
         using var conn = _db.Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT AVG(Price), COUNT(*) FROM PriceHistory WHERE ListingId = $l AND Date >= $from AND Date < $asOf";
-        cmd.Parameters.AddWithValue("$l", listingId);
-        cmd.Parameters.AddWithValue("$from", DateText.ToDb(asOf.AddDays(-days)));
-        cmd.Parameters.AddWithValue("$asOf", DateText.ToDb(asOf));
-
-        using var reader = cmd.ExecuteReader();
-        reader.Read();
-        return reader.GetInt64(1) >= MinPointsForAverage ? reader.GetDouble(0) : null;
+        using var lookup = new AverageLookup(conn, days);
+        return lookup.Get(listingId, asOf);
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using System.Globalization;
+using CatchIt.Core;
 using CatchIt.Core.Search;
 
 namespace CatchIt.App;
@@ -18,6 +19,8 @@ namespace CatchIt.App;
 /// <item><description>With nothing typed, the screen lists the cheapest listings in the whole catalog, so the filters
 /// can be used on their own. It starts this way when opened.</description></item>
 /// </list>
+/// Double-clicking a listing opens its <see cref="ProductDetailForm"/> (price history, alternatives). A listing
+/// whose price is clearly below its recent average is marked "On Sale" (story #8).
 /// Prices and seller ratings are SIMULATED demo data, and the screen says so.
 /// </remarks>
 public partial class SearchForm : Form
@@ -25,9 +28,11 @@ public partial class SearchForm : Form
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
     /// <summary>One row of the results grid. The property names match the grid columns' data property names.</summary>
-    private sealed record ResultRow(string Product, string Brand, string Quality, string Marketplace, string SellerRating, string Price);
+    private sealed record ResultRow(
+        long ListingId, string Product, string Brand, string Quality, string Marketplace, string SellerRating, string Price, string Deal);
 
     private readonly LiveSearchController<ListingSearchPage> _controller;
+    private readonly ProductDetailService _details;
 
     // The filters currently chosen. The background search reads this when it runs, so it holds an immutable
     // record that the screen replaces as a whole (never a control, which must only be touched on this thread).
@@ -41,9 +46,12 @@ public partial class SearchForm : Form
 
     /// <summary>Creates the search screen.</summary>
     /// <param name="search">The service that finds the listings.</param>
-    public SearchForm(ListingSearchService search)
+    /// <param name="details">Supplies the detail window opened by double-clicking a listing.</param>
+    public SearchForm(ListingSearchService search, ProductDetailService details)
     {
+        _details = details;
         InitializeComponent();
+        lblDisclaimer.Text = Disclaimer.SimulatedData;
 
         // Created after the controls exist, on this (the UI) thread, so the controller delivers its
         // results here and the handlers below can update controls directly.
@@ -89,6 +97,15 @@ public partial class SearchForm : Form
         Rerun();
     }
 
+    /// <summary>A double-click on a listing opens its detail window.</summary>
+    private void dgvResults_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
+    {
+        if (e.RowIndex < 0 || dgvResults.Rows[e.RowIndex].DataBoundItem is not ResultRow row) return;
+
+        using var window = new ProductDetailForm(_details, row.ListingId);
+        window.ShowDialog(this);
+    }
+
     private void btnClearFilters_Click(object? sender, EventArgs e)
     {
         _settingFilters = true;
@@ -125,7 +142,7 @@ public partial class SearchForm : Form
     {
         var page = result.Page;
         dgvResults.DataSource = page.Hits.Select(ToRow).ToList();
-        dgvResults.ClearSelection(); // nothing happens on click yet, so do not highlight a row as if it were chosen
+        dgvResults.ClearSelection(); // so no row looks chosen until the user picks one
         lblStatus.ForeColor = SystemColors.ControlText;
 
         // Text with no searchable words (empty, spaces or punctuation) means the whole catalog is being browsed.
@@ -178,19 +195,13 @@ public partial class SearchForm : Form
     private static string Plural(long count, string noun) => $"{count:N0} {noun}{(count == 1 ? "" : "s")}";
 
     private static ResultRow ToRow(ListingHit hit) => new(
+        hit.ListingId,
         hit.ProductName,
         hit.BrandName,
-        TierName(hit.QualityTier),
+        Display.TierName(hit.QualityTier),
         hit.MarketplaceName,
         hit.SellerRating.ToString("0.0", Invariant),
         // A listing with no price says so, rather than showing a misleading number (story #6).
-        hit.CurrentPrice is { } price ? "$" + price.ToString("N2", Invariant) : "Price unavailable");
-
-    private static string TierName(int tier) => tier switch
-    {
-        1 => "Budget",
-        2 => "Standard",
-        3 => "Premium",
-        _ => tier.ToString(Invariant),
-    };
+        hit.CurrentPrice is { } price ? Display.Money(price) : "Price unavailable",
+        hit.OnSale ? "On Sale" : "");
 }

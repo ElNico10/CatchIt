@@ -1,5 +1,6 @@
 using System.Text;
 using CatchIt.Core.Data;
+using CatchIt.Core.Pricing;
 
 namespace CatchIt.Core.Search;
 
@@ -24,9 +25,10 @@ public record ListingFilters(int? QualityTier = null, double? MinSellerRating = 
 /// <param name="MarketplaceName">The marketplace selling it.</param>
 /// <param name="SellerRating">The seller's reputation, 0 to 5. SIMULATED.</param>
 /// <param name="CurrentPrice">The current price in US dollars, or <c>null</c> when none is available. SIMULATED.</param>
+/// <param name="OnSale">True when the price is clearly below its 90-day average (see <see cref="SaleCheck"/>).</param>
 public record ListingHit(
     long ListingId, long ProductId, string ProductName, string BrandName, int QualityTier,
-    string MarketplaceName, double SellerRating, double? CurrentPrice);
+    string MarketplaceName, double SellerRating, double? CurrentPrice, bool OnSale = false);
 
 /// <summary>One page of listing search results.</summary>
 /// <param name="Hits">The listings, cheapest first. Listings without a price come last.</param>
@@ -102,12 +104,32 @@ public class ListingSearchService
     private const string Order = "ORDER BY (l.CurrentPrice IS NULL), l.CurrentPrice, l.Id";
 
     private readonly Database _db;
+    private readonly DateOnly? _today;
 
     /// <summary>Creates the service.</summary>
     /// <param name="db">The database holding the catalog and its search index.</param>
-    public ListingSearchService(Database db)
+    /// <param name="today">The day "now" is for the On Sale check; defaults to the real date. Tests pass a fixed date.</param>
+    public ListingSearchService(Database db, DateOnly? today = null)
     {
         _db = db;
+        _today = today;
+    }
+
+    /// <summary>
+    /// Sets <see cref="ListingHit.OnSale"/> on the listings whose price is clearly below their 90-day average.
+    /// Only the rows of the page are checked, with one batched query for the whole page, never the whole catalog.
+    /// </summary>
+    private void MarkOnSale(Microsoft.Data.Sqlite.SqliteConnection conn, List<ListingHit> hits)
+    {
+        if (hits.Count == 0) return;
+
+        var asOf = _today ?? DateOnly.FromDateTime(DateTime.Today);
+        var averages = AverageLookup.GetMany(conn, hits.Where(h => h.CurrentPrice != null).Select(h => h.ListingId),
+            SaleCheck.AverageDays, asOf);
+        for (var i = 0; i < hits.Count; i++)
+            if (hits[i].CurrentPrice is { } price && averages.TryGetValue(hits[i].ListingId, out var average)
+                && SaleCheck.IsOnSale(price, average))
+                hits[i] = hits[i] with { OnSale = true };
     }
 
     /// <summary>Finds the cheapest listings across every matching product.</summary>
@@ -157,6 +179,7 @@ public class ListingSearchService
             }
         }
 
+        MarkOnSale(conn, hits);
         return new ListingSearchPage(hits, total, null, false, true,
             hits.Count > 0 || TextMatchesAnyProduct(conn, query));
     }
@@ -245,6 +268,7 @@ public class ListingSearchService
             while (reader.Read()) hits.Add(ReadHit(reader));
         }
 
+        MarkOnSale(conn, hits);
         var matchedText = hits.Count > 0 || products > 0 || TextMatchesAnyProduct(conn, query);
         return new ListingSearchPage(hits, null, products, capped, !capped && products <= productLimit, matchedText);
     }
@@ -288,6 +312,8 @@ public class ListingSearchService
         // The extra row was only a probe: it proves there are more listings than the page shows.
         var more = hits.Count > limit;
         if (more) hits.RemoveRange(limit, hits.Count - limit);
+
+        MarkOnSale(conn, hits);
 
         // With no text there is nothing for the text to "match", so this is true whenever the catalog has any
         // product at all: it is what tells "no products found" (an empty catalog) from "no products match your filters".

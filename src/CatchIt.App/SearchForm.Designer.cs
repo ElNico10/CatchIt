@@ -18,6 +18,7 @@ partial class SearchForm
     private void InitializeComponent()
     {
         DataGridViewCellStyle priceStyle = new DataGridViewCellStyle();
+        DataGridViewCellStyle dealStyle = new DataGridViewCellStyle();
         lblTitle = new Label();
         txtSearch = new TextBox();
         btnSearch = new Button();
@@ -34,6 +35,9 @@ partial class SearchForm
         colMarketplace = new DataGridViewTextBoxColumn();
         colSellerRating = new DataGridViewTextBoxColumn();
         colPrice = new DataGridViewTextBoxColumn();
+        colDeal = new DataGridViewTextBoxColumn();
+        colListingId = new DataGridViewTextBoxColumn();
+        lblHint = new Label();
         lblDisclaimer = new Label();
         btnBack = new Button();
         ((System.ComponentModel.ISupportInitialize)dgvResults).BeginInit();
@@ -140,7 +144,7 @@ partial class SearchForm
         dgvResults.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
         dgvResults.BackgroundColor = SystemColors.Window;
         dgvResults.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-        dgvResults.Columns.AddRange(new DataGridViewColumn[] { colProduct, colBrand, colQuality, colMarketplace, colSellerRating, colPrice });
+        dgvResults.Columns.AddRange(new DataGridViewColumn[] { colProduct, colBrand, colQuality, colMarketplace, colSellerRating, colPrice, colDeal, colListingId });
         dgvResults.Location = new Point(32, 168);
         dgvResults.MultiSelect = false;
         dgvResults.Name = "dgvResults";
@@ -148,13 +152,14 @@ partial class SearchForm
         dgvResults.RowHeadersVisible = false;
         dgvResults.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         dgvResults.ShowCellToolTips = true;
+        dgvResults.CellDoubleClick += dgvResults_CellDoubleClick;
         dgvResults.Size = new Size(836, 320);
         dgvResults.TabIndex = 5;
         //
         // colProduct
         //
         colProduct.DataPropertyName = "Product";
-        colProduct.FillWeight = 36F;
+        colProduct.FillWeight = 30F;
         colProduct.HeaderText = "Product";
         colProduct.Name = "colProduct";
         colProduct.ReadOnly = true;
@@ -181,7 +186,7 @@ partial class SearchForm
         // colMarketplace
         //
         colMarketplace.DataPropertyName = "Marketplace";
-        colMarketplace.FillWeight = 14F;
+        colMarketplace.FillWeight = 12F;
         colMarketplace.HeaderText = "Marketplace";
         colMarketplace.Name = "colMarketplace";
         colMarketplace.ReadOnly = true;
@@ -190,7 +195,7 @@ partial class SearchForm
         // colSellerRating
         //
         colSellerRating.DataPropertyName = "SellerRating";
-        colSellerRating.FillWeight = 14F;
+        colSellerRating.FillWeight = 13F;
         colSellerRating.HeaderText = "Seller rating (simulated)";
         colSellerRating.Name = "colSellerRating";
         colSellerRating.ReadOnly = true;
@@ -207,6 +212,36 @@ partial class SearchForm
         colPrice.ReadOnly = true;
         colPrice.SortMode = DataGridViewColumnSortMode.NotSortable;
         //
+        // colDeal
+        //
+        dealStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+        dealStyle.ForeColor = Color.ForestGreen;
+        colDeal.DataPropertyName = "Deal";
+        colDeal.DefaultCellStyle = dealStyle;
+        colDeal.FillWeight = 9F;
+        colDeal.HeaderText = "Deal";
+        colDeal.Name = "colDeal";
+        colDeal.ReadOnly = true;
+        colDeal.SortMode = DataGridViewColumnSortMode.NotSortable;
+        //
+        // colListingId (not shown: tells the screen which listing a row is)
+        //
+        colListingId.DataPropertyName = "ListingId";
+        colListingId.HeaderText = "Listing";
+        colListingId.Name = "colListingId";
+        colListingId.ReadOnly = true;
+        colListingId.Visible = false;
+        //
+        // lblHint
+        //
+        lblHint.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+        lblHint.ForeColor = SystemColors.GrayText;
+        lblHint.Location = new Point(170, 552);
+        lblHint.Name = "lblHint";
+        lblHint.Size = new Size(500, 20);
+        lblHint.TabIndex = 7;
+        lblHint.Text = "Double-click a listing to see its price history and alternatives.";
+        //
         // lblDisclaimer
         //
         lblDisclaimer.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
@@ -215,7 +250,6 @@ partial class SearchForm
         lblDisclaimer.Name = "lblDisclaimer";
         lblDisclaimer.Size = new Size(836, 36);
         lblDisclaimer.TabIndex = 9;
-        lblDisclaimer.Text = "Prices and seller ratings are simulated for demonstration. The data comes from the local seeded catalog, not from live marketplaces.";
         //
         // btnBack
         //
@@ -246,6 +280,7 @@ partial class SearchForm
         Controls.Add(lblStatus);
         Controls.Add(dgvResults);
         Controls.Add(lblDisclaimer);
+        Controls.Add(lblHint);
         Controls.Add(btnBack);
         MinimumSize = new Size(780, 520);
         Name = "SearchForm";
@@ -274,6 +309,9 @@ partial class SearchForm
     private DataGridViewTextBoxColumn colMarketplace;
     private DataGridViewTextBoxColumn colSellerRating;
     private DataGridViewTextBoxColumn colPrice;
+    private DataGridViewTextBoxColumn colDeal;
+    private DataGridViewTextBoxColumn colListingId;
+    private Label lblHint;
     private Label lblDisclaimer;
     private Button btnBack;
 }
