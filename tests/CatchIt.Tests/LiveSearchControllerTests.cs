@@ -254,6 +254,9 @@ public class LiveSearchControllerTests
         await quick.WaitUntilStarted("wire");
         quick.Fail("wire", new InvalidOperationException("the database is unavailable"));
 
+        // Wait for the failure itself rather than a fixed quiet period: when many tests run at once the
+        // thread pool can be busy for longer than that, and the failure would be reported after the check.
+        Assert.True(SpinWait.SpinUntil(() => !recorder.Failures.IsEmpty, Patience));
         Assert.True(recorder.NothingMoreComes());
         Assert.Equal("the database is unavailable", Assert.Single(recorder.Failures).Message);
     }
