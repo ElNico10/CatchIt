@@ -1,34 +1,23 @@
 ﻿using CatchIt.Core.Auth;
 using CatchIt.Core.Data;
-using Microsoft.Data.Sqlite;
 
 namespace CatchIt.Tests;
 
 /// <summary>
 /// Story #16: "Change password with valid data", plus the rules that keep a password change secure.
 /// </summary>
-public class ChangePasswordTests : IDisposable
+public class ChangePasswordTests : TempDatabaseTests
 {
     private const string Email = "shopper@example.com";
     private const string OldPassword = "Passw0rd1";
     private const string NewPassword = "NewPassw0rd2";
 
-    private readonly string _path = Path.Combine(Path.GetTempPath(), $"catchit-test-{Guid.NewGuid():N}.db");
-    private readonly Database _db;
     private readonly Session _session = new();
     private readonly UserService _users;
 
     public ChangePasswordTests()
     {
-        _db = new Database(_path);
-        _db.Initialize();
-        _users = new UserService(_db, _session);
-    }
-
-    public void Dispose()
-    {
-        SqliteConnection.ClearAllPools();
-        if (File.Exists(_path)) File.Delete(_path);
+        _users = new UserService(Db, _session);
     }
 
     private void RegisterAndLogIn()
@@ -39,7 +28,7 @@ public class ChangePasswordTests : IDisposable
 
     private string StoredHash()
     {
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT PasswordHash FROM Users WHERE Email = $e";
         cmd.Parameters.AddWithValue("$e", Email);
@@ -48,7 +37,7 @@ public class ChangePasswordTests : IDisposable
 
     private void SetResetToken(string? token)
     {
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "UPDATE Users SET ResetToken = $t WHERE Email = $e";
         cmd.Parameters.AddWithValue("$t", (object?)token ?? DBNull.Value);
@@ -58,7 +47,7 @@ public class ChangePasswordTests : IDisposable
 
     private object? StoredResetToken()
     {
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT ResetToken FROM Users WHERE Email = $e";
         cmd.Parameters.AddWithValue("$e", Email);
@@ -244,7 +233,7 @@ public class ChangePasswordTests : IDisposable
     [Fact]
     public void ChangePassword_SeededDemoUser_Works()
     {
-        new Seeder(_db).Run();
+        new Seeder(Db).Run();
         _users.Login("demo@catchit.test", "Demo1234!");
 
         var result = _users.ChangePassword("Demo1234!", NewPassword, NewPassword);

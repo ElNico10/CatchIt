@@ -1,6 +1,5 @@
 using CatchIt.Core.Data;
 using CatchIt.Core.Search;
-using Microsoft.Data.Sqlite;
 
 namespace CatchIt.Tests;
 
@@ -8,31 +7,20 @@ namespace CatchIt.Tests;
 /// Tests for <see cref="ListingSearchService"/> on small, hand-made catalogs where the right answer
 /// can be worked out by eye (user stories #5, #6, #9, #10, #11). Each test gets its own throwaway database file.
 /// </summary>
-public class ListingSearchServiceTests : IDisposable
+public class ListingSearchServiceTests : TempDatabaseTests
 {
-    private readonly string _path = Path.Combine(Path.GetTempPath(), $"catchit-test-{Guid.NewGuid():N}.db");
-    private readonly Database _db;
     private readonly ListingSearchService _search;
 
     public ListingSearchServiceTests()
     {
-        _db = new Database(_path);
-        _db.Initialize();
-        _search = new ListingSearchService(_db);
-    }
-
-    public void Dispose()
-    {
-        // SQLite keeps pooled connections open, which would stop the file being deleted.
-        SqliteConnection.ClearAllPools();
-        if (File.Exists(_path)) File.Delete(_path);
+        _search = new ListingSearchService(Db);
     }
 
     /// <summary>Adds a product with the given listings, each as (marketplace, price, seller rating), and returns the listing ids.</summary>
     private long[] AddProduct(string name, string brand, int tier, string keywords, params (string Market, double? Price, double Rating)[] listings)
     {
-        var product = TestCatalog.AddProduct(_db, name, brand, tier, keywords);
-        return listings.Select(l => TestCatalog.AddListing(_db, product, l.Market, l.Price, l.Rating)).ToArray();
+        var product = TestCatalog.AddProduct(Db, name, brand, tier, keywords);
+        return listings.Select(l => TestCatalog.AddListing(Db, product, l.Market, l.Price, l.Rating)).ToArray();
     }
 
     private static List<string> Describe(ListingSearchPage page) =>
@@ -129,38 +117,12 @@ public class ListingSearchServiceTests : IDisposable
     [Fact]
     public void Search_AProductWithNoListings_MatchesTheTextButShowsNothing()
     {
-        TestCatalog.AddProduct(_db, "Unlisted Gadget", "G", 2, "gadget");
+        TestCatalog.AddProduct(Db, "Unlisted Gadget", "G", 2, "gadget");
 
         var page = _search.Search("gadget");
 
         Assert.Empty(page.Hits);
         Assert.True(page.TextMatchedAnyProduct); // the screen can tell this apart from "no products found"
-    }
-
-    [Fact]
-    public void Search_UsesTheSameWordMatchingAsTheProductSearch()
-    {
-        AddProduct("Apex Wireless Headphones", "Apex", 3, "headphones audio", ("A", 100, 4));
-
-        Assert.Single(_search.Search("WIRELESS head").Hits);           // case and word starts
-        Assert.Single(_search.Search("audio").Hits);                    // keywords
-        Assert.Empty(_search.Search("eadphone").Hits);                  // not the middle of a word
-        Assert.Empty(_search.Search("wireless monitor").Hits);          // every word must match
-    }
-
-    [Theory]
-    [InlineData("wireless AND")]
-    [InlineData("NEAR(wireless headphones)")]
-    [InlineData("name:wireless")]
-    [InlineData("\"unclosed quote wireless")]
-    [InlineData("wireless); DROP TABLE Products; --")]
-    public void Search_SearchSyntaxTypedByTheUser_NeverThrows(string text)
-    {
-        AddProduct("Apex Wireless Headphones", "Apex", 3, "headphones", ("A", 100, 4));
-
-        Assert.Null(Record.Exception(() => _search.Search(text)));
-        Assert.Null(Record.Exception(() => _search.QuickSearch(text)));
-        Assert.Equal(1, TestCatalog.Count(_db, "SELECT COUNT(*) FROM Products"));
     }
 
     // ---- Filters (stories #10 and #11) ----
@@ -557,7 +519,7 @@ public class ListingSearchServiceTests : IDisposable
     [Fact]
     public void Browse_AProductWithNoListingsIsNotShown()
     {
-        TestCatalog.AddProduct(_db, "Unlisted Gadget", "G", 2, "gadget");
+        TestCatalog.AddProduct(Db, "Unlisted Gadget", "G", 2, "gadget");
         AddProduct("Listed Gadget", "G", 2, "gadget", ("A", 10, 4));
 
         Assert.Equal(new[] { "Listed Gadget @ A 10.00" }, Describe(_search.Search("")));

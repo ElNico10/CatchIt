@@ -6,7 +6,7 @@ namespace CatchIt.App;
 /// <summary>
 /// Main window hub. Each feature button asks Access.Check whether the current session may
 /// use it, then opens that feature's screen in its own window. Search, watchlist and
-/// dashboard are still placeholders; the profile screen already works.
+/// profile work; the dashboard is still a placeholder.
 /// </summary>
 /// <remarks>
 /// The window has three stacked panels: the top bar (who is logged in and the Logout / Log in
@@ -21,6 +21,8 @@ public partial class MainForm : Form
     private readonly ConfirmationService _confirmation;
     private readonly ProfileService _profile;
     private readonly ListingSearchService _listingSearch;
+    private readonly ProductDetailService _productDetails;
+    private readonly WatchlistService _watchlist;
 
     /// <summary>
     /// True when the form closed because the user logged out (or chose to log in from
@@ -34,10 +36,14 @@ public partial class MainForm : Form
     /// <param name="confirmation">Used by the banner to request and check confirmation codes.</param>
     /// <param name="profile">Handed to the profile screen so it can save name and email changes.</param>
     /// <param name="listingSearch">Handed to the search screen so it can find products and their prices.</param>
+    /// <param name="productDetails">Handed to the search screen so it can open a listing's detail window.</param>
+    /// <param name="watchlist">Handed to the watchlist and search screens.</param>
     public MainForm(UserService users, Session session, ConfirmationService confirmation, ProfileService profile,
-        ListingSearchService listingSearch)
+        ListingSearchService listingSearch, ProductDetailService productDetails, WatchlistService watchlist)
     {
         _listingSearch = listingSearch;
+        _productDetails = productDetails;
+        _watchlist = watchlist;
         _users = users;
         _session = session;
         _confirmation = confirmation;
@@ -111,9 +117,9 @@ public partial class MainForm : Form
 
     // The four feature buttons all go through OpenFeature so the access rules live in one place.
     private void btnSearch_Click(object? sender, EventArgs e) =>
-        OpenFeature(Feature.Search, "Product search", () => new SearchForm(_listingSearch));
+        OpenFeature(Feature.Search, "Product search", () => new SearchForm(_listingSearch, _productDetails, _watchlist));
     private void btnWatchlist_Click(object? sender, EventArgs e) =>
-        OpenFeature(Feature.Watchlist, "Watchlist", () => new WatchlistForm());
+        OpenFeature(Feature.Watchlist, "Watchlist", () => new WatchlistForm(_watchlist, _productDetails));
     private void btnDashboard_Click(object? sender, EventArgs e) =>
         OpenFeature(Feature.Dashboard, "Dashboard", () => new DashboardForm());
     private void btnProfile_Click(object? sender, EventArgs e) =>

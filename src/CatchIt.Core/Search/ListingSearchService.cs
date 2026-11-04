@@ -1,5 +1,7 @@
 using System.Text;
+using Microsoft.Data.Sqlite;
 using CatchIt.Core.Data;
+using CatchIt.Core.Pricing;
 
 namespace CatchIt.Core.Search;
 
@@ -24,9 +26,10 @@ public record ListingFilters(int? QualityTier = null, double? MinSellerRating = 
 /// <param name="MarketplaceName">The marketplace selling it.</param>
 /// <param name="SellerRating">The seller's reputation, 0 to 5. SIMULATED.</param>
 /// <param name="CurrentPrice">The current price in US dollars, or <c>null</c> when none is available. SIMULATED.</param>
+/// <param name="OnSale">True when the price is clearly below its 90-day average (see <see cref="SaleCheck"/>).</param>
 public record ListingHit(
     long ListingId, long ProductId, string ProductName, string BrandName, int QualityTier,
-    string MarketplaceName, double SellerRating, double? CurrentPrice);
+    string MarketplaceName, double SellerRating, double? CurrentPrice, bool OnSale = false);
 
 /// <summary>One page of listing search results.</summary>
 /// <param name="Hits">The listings, cheapest first. Listings without a price come last.</param>
@@ -54,11 +57,11 @@ public record ListingSearchPage(
 
 /// <summary>
 /// Searches the catalog and returns marketplace listings with their prices, cheapest first
-/// (user stories #5, #6, #9, #10, #11). Words are matched exactly as in <see cref="ProductSearchService"/>:
+/// (user stories #5, #6, #9, #10, #11). Words are matched as described in <see cref="SearchQuery"/>:
 /// every typed word must be the start of a word in the product's name or keywords, ignoring case.
 /// </summary>
 /// <remarks>
-/// Like the product search, there are two modes that agree on which listings match:
+/// There are two modes that agree on which listings match:
 /// <list type="bullet">
 /// <item><description>
 /// <see cref="Search"/> considers every matching product and lists the cheapest listings of all of them.
@@ -102,12 +105,32 @@ public class ListingSearchService
     private const string Order = "ORDER BY (l.CurrentPrice IS NULL), l.CurrentPrice, l.Id";
 
     private readonly Database _db;
+    private readonly DateOnly? _today;
 
     /// <summary>Creates the service.</summary>
     /// <param name="db">The database holding the catalog and its search index.</param>
-    public ListingSearchService(Database db)
+    /// <param name="today">The day "now" is for the On Sale check; defaults to the real date. Tests pass a fixed date.</param>
+    public ListingSearchService(Database db, DateOnly? today = null)
     {
         _db = db;
+        _today = today;
+    }
+
+    /// <summary>
+    /// Sets <see cref="ListingHit.OnSale"/> on the listings whose price is clearly below their 90-day average.
+    /// Only the rows of the page are checked, with one batched query for the whole page, never the whole catalog.
+    /// </summary>
+    private void MarkOnSale(SqliteConnection conn, List<ListingHit> hits)
+    {
+        if (hits.Count == 0) return;
+
+        var asOf = _today ?? DateOnly.FromDateTime(DateTime.Today);
+        var averages = AverageLookup.GetMany(conn, hits.Where(h => h.CurrentPrice != null).Select(h => h.ListingId),
+            SaleCheck.AverageDays, asOf);
+        for (var i = 0; i < hits.Count; i++)
+            if (hits[i].CurrentPrice is { } price && averages.TryGetValue(hits[i].ListingId, out var average)
+                && SaleCheck.IsOnSale(price, average))
+                hits[i] = hits[i] with { OnSale = true };
     }
 
     /// <summary>Finds the cheapest listings across every matching product.</summary>
@@ -122,7 +145,7 @@ public class ListingSearchService
         limit = Math.Clamp(limit, 1, MaxLimit);
 
         // Nothing searchable typed: browse the whole catalog instead.
-        var query = ProductSearchService.BuildQuery(text);
+        var query = SearchQuery.Build(text);
         if (query == null) return Browse(filters, limit);
 
         using var conn = _db.Open();
@@ -157,6 +180,7 @@ public class ListingSearchService
             }
         }
 
+        MarkOnSale(conn, hits);
         return new ListingSearchPage(hits, total, null, false, true,
             hits.Count > 0 || TextMatchesAnyProduct(conn, query));
     }
@@ -179,7 +203,7 @@ public class ListingSearchService
 
         // Nothing searchable typed: browse the whole catalog instead. This is already exact and fast
         // (it reads listings in price order and stops), so a quick search has nothing to cut short.
-        var query = ProductSearchService.BuildQuery(text);
+        var query = SearchQuery.Build(text);
         if (query == null) return Browse(filters, limit);
 
         productLimit = Math.Clamp(productLimit, 1, MaxLimit);
@@ -245,6 +269,7 @@ public class ListingSearchService
             while (reader.Read()) hits.Add(ReadHit(reader));
         }
 
+        MarkOnSale(conn, hits);
         var matchedText = hits.Count > 0 || products > 0 || TextMatchesAnyProduct(conn, query);
         return new ListingSearchPage(hits, null, products, capped, !capped && products <= productLimit, matchedText);
     }
@@ -289,6 +314,8 @@ public class ListingSearchService
         var more = hits.Count > limit;
         if (more) hits.RemoveRange(limit, hits.Count - limit);
 
+        MarkOnSale(conn, hits);
+
         // With no text there is nothing for the text to "match", so this is true whenever the catalog has any
         // product at all: it is what tells "no products found" (an empty catalog) from "no products match your filters".
         var catalogHasProducts = hits.Count > 0 || AnyProductExists(conn);
@@ -298,7 +325,7 @@ public class ListingSearchService
     }
 
     /// <summary>Reads priced listings in price order, or unpriced ones in id order, passing the filters.</summary>
-    private static List<ListingHit> ReadBrowse(Microsoft.Data.Sqlite.SqliteConnection conn, ListingFilters filters, bool priced, int take)
+    private static List<ListingHit> ReadBrowse(SqliteConnection conn, ListingFilters filters, bool priced, int take)
     {
         using var cmd = conn.CreateCommand();
         var sql = new StringBuilder($"""
@@ -322,7 +349,7 @@ public class ListingSearchService
         return hits;
     }
 
-    private static bool AnyProductExists(Microsoft.Data.Sqlite.SqliteConnection conn)
+    private static bool AnyProductExists(SqliteConnection conn)
     {
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT 1 FROM Products LIMIT 1";
@@ -359,14 +386,14 @@ public class ListingSearchService
     }
 
     /// <summary>Supplies the values for the filter conditions the helpers above wrote, once per command.</summary>
-    private static void BindFilters(Microsoft.Data.Sqlite.SqliteCommand cmd, ListingFilters filters)
+    private static void BindFilters(SqliteCommand cmd, ListingFilters filters)
     {
         if (filters.QualityTier is { } tier) cmd.Parameters.AddWithValue("$tier", tier);
         if (filters.MinSellerRating is { } rating) cmd.Parameters.AddWithValue("$minRating", rating);
     }
 
     /// <summary>Checks whether the text matches any product at all, ignoring the filters.</summary>
-    private static bool TextMatchesAnyProduct(Microsoft.Data.Sqlite.SqliteConnection conn, string query)
+    private static bool TextMatchesAnyProduct(SqliteConnection conn, string query)
     {
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT 1 FROM ProductSearch WHERE ProductSearch MATCH $q LIMIT 1";
@@ -374,7 +401,7 @@ public class ListingSearchService
         return cmd.ExecuteScalar() != null;
     }
 
-    private static ListingHit ReadHit(Microsoft.Data.Sqlite.SqliteDataReader r) =>
+    private static ListingHit ReadHit(SqliteDataReader r) =>
         new(r.GetInt64(0), r.GetInt64(1), r.GetString(2), r.GetString(3), r.GetInt32(4),
             r.GetString(5), r.GetDouble(6), r.IsDBNull(7) ? null : r.GetDouble(7));
 }

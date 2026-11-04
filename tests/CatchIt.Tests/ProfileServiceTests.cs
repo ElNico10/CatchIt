@@ -1,6 +1,5 @@
 using CatchIt.Core.Auth;
 using CatchIt.Core.Data;
-using Microsoft.Data.Sqlite;
 
 namespace CatchIt.Tests;
 
@@ -8,30 +7,19 @@ namespace CatchIt.Tests;
 /// Tests for <see cref="ProfileService"/> (user story #16, name and email only).
 /// Each test gets its own throwaway database file.
 /// </summary>
-public class ProfileServiceTests : IDisposable
+public class ProfileServiceTests : TempDatabaseTests
 {
     private const string Email = "shopper@example.com";
     private const string Password = "Passw0rd1";
 
-    private readonly string _path = Path.Combine(Path.GetTempPath(), $"catchit-test-{Guid.NewGuid():N}.db");
-    private readonly Database _db;
     private readonly Session _session = new();
     private readonly UserService _users;
     private readonly ProfileService _profile;
 
     public ProfileServiceTests()
     {
-        _db = new Database(_path);
-        _db.Initialize();
-        _users = new UserService(_db, _session);
-        _profile = new ProfileService(_db, _session);
-    }
-
-    public void Dispose()
-    {
-        // SQLite keeps pooled connections open, which would stop the file being deleted.
-        SqliteConnection.ClearAllPools();
-        if (File.Exists(_path)) File.Delete(_path);
+        _users = new UserService(Db, _session);
+        _profile = new ProfileService(Db, _session);
     }
 
     /// <summary>Registers an account and logs into it, leaving the session ready for profile edits.</summary>
@@ -44,7 +32,7 @@ public class ProfileServiceTests : IDisposable
     /// <summary>Reads the saved name and email straight from the database, bypassing the session.</summary>
     private (string Name, string Email) SavedProfile(long userId)
     {
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT Name, Email FROM Users WHERE Id = $id";
         cmd.Parameters.AddWithValue("$id", userId);
@@ -129,7 +117,7 @@ public class ProfileServiceTests : IDisposable
     public void UpdateProfile_ChangingEmail_KeepsConfirmedStatus()
     {
         // The seeded demo account is created already confirmed.
-        new Seeder(_db).Run();
+        new Seeder(Db).Run();
         _users.Login("demo@catchit.test", "Demo1234!");
 
         _profile.UpdateProfile("Demo User", "demo.moved@catchit.test");
@@ -247,7 +235,7 @@ public class ProfileServiceTests : IDisposable
 
         _profile.UpdateProfile("Changed Name", "changed@example.com");
 
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT Name FROM Users WHERE Email = 'other@example.com'";
         Assert.Equal("Other Person", (string)cmd.ExecuteScalar()!);

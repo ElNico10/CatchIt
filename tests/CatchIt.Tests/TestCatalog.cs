@@ -1,4 +1,5 @@
 using CatchIt.Core.Data;
+using CatchIt.Core.Search;
 using Microsoft.Data.Sqlite;
 
 namespace CatchIt.Tests;
@@ -39,6 +40,10 @@ internal static class TestCatalog
     }
 
     /// <summary>Counts the rows a query returns, for quick assertions on table sizes.</summary>
+    /// <summary>How many distinct products a search for the text finds (only products with a listing can be found).</summary>
+    public static int ProductsMatching(Database db, string text) =>
+        new ListingSearchService(db).Search(text, null, 500).Hits.Select(h => h.ProductId).Distinct().Count();
+
     public static long Count(Database db, string sql)
     {
         using var conn = db.Open();

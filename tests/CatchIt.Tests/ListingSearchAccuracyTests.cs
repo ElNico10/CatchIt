@@ -126,8 +126,8 @@ public class ListingSearchAccuracyTests : IDisposable
     /// </summary>
     private List<OracleProduct> MatchingProducts(string query)
     {
-        var words = Tokenize(query).Take(ProductSearchService.MaxWords)
-            .Select(w => w.Length > ProductSearchService.MaxWordLength ? w[..ProductSearchService.MaxWordLength] : w)
+        var words = Tokenize(query).Take(SearchQuery.MaxWords)
+            .Select(w => w.Length > SearchQuery.MaxWordLength ? w[..SearchQuery.MaxWordLength] : w)
             .ToArray();
         if (words.Length == 0) return _products.OrderBy(p => p.Id).ToList();
 

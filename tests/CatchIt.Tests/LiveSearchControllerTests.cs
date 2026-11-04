@@ -20,26 +20,26 @@ public class LiveSearchControllerTests
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan QuietPeriod = TimeSpan.FromMilliseconds(300);
 
-    private static SearchPage PageFor(string? text) =>
-        new(new[] { new ProductHit(1, $"result for {text}", "Brand", 2) }, 1);
+    private static ListingSearchPage PageFor(string? text) =>
+        new(new[] { new ListingHit(1, 1, $"result for {text}", "Brand", 2, "Market", 4.0, 10.0) }, 1, null, false, true, true);
 
     /// <summary>A fake search that records every call and finishes only when the test says so.</summary>
     private sealed class FakeSearch
     {
-        private readonly ConcurrentDictionary<string, TaskCompletionSource<SearchPage>> _gates = new();
+        private readonly ConcurrentDictionary<string, TaskCompletionSource<ListingSearchPage>> _gates = new();
         public ConcurrentQueue<string> Calls { get; } = new();
         public ConcurrentDictionary<string, TaskCompletionSource> Started { get; } = new();
 
         public bool Gated { get; init; } = true;
 
-        public async Task<SearchPage> Run(string? text, CancellationToken token)
+        public async Task<ListingSearchPage> Run(string? text, CancellationToken token)
         {
             var key = text ?? "";
             Calls.Enqueue(key);
             Started.GetOrAdd(key, _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
             if (!Gated) return PageFor(text);
 
-            var gate = _gates.GetOrAdd(key, _ => new TaskCompletionSource<SearchPage>(TaskCreationOptions.RunContinuationsAsynchronously));
+            var gate = _gates.GetOrAdd(key, _ => new TaskCompletionSource<ListingSearchPage>(TaskCreationOptions.RunContinuationsAsynchronously));
             return await gate.Task.WaitAsync(token);   // cancelled searches stop waiting, like a real cancellable call
         }
 
@@ -47,40 +47,40 @@ public class LiveSearchControllerTests
             Started.GetOrAdd(text, _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).Task.WaitAsync(Patience);
 
         public void Finish(string text) =>
-            _gates.GetOrAdd(text, _ => new TaskCompletionSource<SearchPage>(TaskCreationOptions.RunContinuationsAsynchronously))
+            _gates.GetOrAdd(text, _ => new TaskCompletionSource<ListingSearchPage>(TaskCreationOptions.RunContinuationsAsynchronously))
                   .TrySetResult(PageFor(text));
 
         public void Fail(string text, Exception ex) =>
-            _gates.GetOrAdd(text, _ => new TaskCompletionSource<SearchPage>(TaskCreationOptions.RunContinuationsAsynchronously))
+            _gates.GetOrAdd(text, _ => new TaskCompletionSource<ListingSearchPage>(TaskCreationOptions.RunContinuationsAsynchronously))
                   .TrySetException(ex);
     }
 
     /// <summary>Collects everything a controller raises, so tests can wait for it or check that nothing came.</summary>
     private sealed class Recorder
     {
-        private readonly BlockingCollection<LiveSearchResult<SearchPage>> _results = new();
+        private readonly BlockingCollection<LiveSearchResult<ListingSearchPage>> _results = new();
         public ConcurrentQueue<Exception> Failures { get; } = new();
         public ConcurrentQueue<int> ThreadIds { get; } = new();
 
-        public Recorder(LiveSearchController<SearchPage> controller)
+        public Recorder(LiveSearchController<ListingSearchPage> controller)
         {
             controller.ResultsReady += (_, r) => { ThreadIds.Enqueue(Environment.CurrentManagedThreadId); _results.Add(r); };
             controller.SearchFailed += (_, ex) => Failures.Enqueue(ex);
         }
 
-        public LiveSearchResult<SearchPage> Next() =>
+        public LiveSearchResult<ListingSearchPage> Next() =>
             _results.TryTake(out var result, Patience) ? result : throw new TimeoutException("No search results arrived in time.");
 
         /// <summary>True if no further result arrives during a short quiet period.</summary>
         public bool NothingMoreComes() => !_results.TryTake(out _, QuietPeriod);
     }
 
-    private static (LiveSearchController<SearchPage> Controller, FakeSearch Quick, FakeSearch Full, Recorder Recorder) Make(
+    private static (LiveSearchController<ListingSearchPage> Controller, FakeSearch Quick, FakeSearch Full, Recorder Recorder) Make(
         bool gated = true, TimeSpan? debounce = null)
     {
         var quick = new FakeSearch { Gated = gated };
         var full = new FakeSearch { Gated = gated };
-        var controller = new LiveSearchController<SearchPage>(quick.Run, full.Run, debounce ?? Debounce);
+        var controller = new LiveSearchController<ListingSearchPage>(quick.Run, full.Run, debounce ?? Debounce);
         return (controller, quick, full, new Recorder(controller));
     }
 
@@ -96,7 +96,7 @@ public class LiveSearchControllerTests
         var result = recorder.Next();
         Assert.Equal("wire", result.Text);
         Assert.False(result.IsFinal);
-        Assert.Equal("result for wire", result.Page.Hits.Single().Name);
+        Assert.Equal("result for wire", result.Page.Hits.Single().ProductName);
     }
 
     [Fact]
@@ -317,7 +317,7 @@ public class LiveSearchControllerTests
     public void Results_AreRaisedOnTheThreadTheControllerWasCreatedOn()
     {
         using var ui = new SingleThreadContext();
-        LiveSearchController<SearchPage>? controller = null;
+        LiveSearchController<ListingSearchPage>? controller = null;
         Recorder? recorder = null;
         var created = new ManualResetEventSlim();
 
@@ -325,7 +325,7 @@ public class LiveSearchControllerTests
         ui.Post(_ =>
         {
             SynchronizationContext.SetSynchronizationContext(ui);
-            controller = new LiveSearchController<SearchPage>(new FakeSearch { Gated = false }.Run, new FakeSearch { Gated = false }.Run, Debounce);
+            controller = new LiveSearchController<ListingSearchPage>(new FakeSearch { Gated = false }.Run, new FakeSearch { Gated = false }.Run, Debounce);
             recorder = new Recorder(controller);
             created.Set();
         }, null);
@@ -348,11 +348,11 @@ public class LiveSearchControllerTests
         {
             var db = new Database(path);
             db.Initialize();
-            TestCatalog.AddProduct(db, "Apex Wireless Headphones", "Apex", 3, "headphones wireless");
-            TestCatalog.AddProduct(db, "Orbit Wireless Headphones", "Orbit", 2, "headphones wireless");
-            TestCatalog.AddProduct(db, "Zenith Monitor", "Zenith", 3, "monitor");
+            TestCatalog.AddListing(db, TestCatalog.AddProduct(db, "Apex Wireless Headphones", "Apex", 3, "headphones wireless"));
+            TestCatalog.AddListing(db, TestCatalog.AddProduct(db, "Orbit Wireless Headphones", "Orbit", 2, "headphones wireless"));
+            TestCatalog.AddListing(db, TestCatalog.AddProduct(db, "Zenith Monitor", "Zenith", 3, "monitor"));
 
-            var controller = LiveSearchController.For(new ProductSearchService(db), debounce: Debounce);
+            var controller = LiveSearchController.For(new ListingSearchService(db), () => ListingFilters.None, debounce: Debounce);
             var recorder = new Recorder(controller);
 
             controller.TextChanged("wireless head");
@@ -362,8 +362,8 @@ public class LiveSearchControllerTests
 
             Assert.False(quick.IsFinal);
             Assert.True(final.IsFinal);
-            Assert.Equal(2, quick.Page.TotalMatches);
-            Assert.Equal(2, final.Page.TotalMatches);
+            Assert.Equal(2, quick.Page.TotalProducts);
+            Assert.Equal(2, final.Page.TotalListings);
             Assert.True(quick.Page.Hits.Select(h => h.ProductId).ToHashSet().SetEquals(final.Page.Hits.Select(h => h.ProductId)));
         }
         finally

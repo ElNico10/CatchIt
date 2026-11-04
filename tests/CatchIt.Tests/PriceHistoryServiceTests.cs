@@ -1,6 +1,5 @@
 using CatchIt.Core.Data;
 using CatchIt.Core.Pricing;
-using Microsoft.Data.Sqlite;
 
 namespace CatchIt.Tests;
 
@@ -9,35 +8,24 @@ namespace CatchIt.Tests;
 /// average, and keeping the compact shape (weekly points plus extremes) as new prices arrive.
 /// Each test gets its own throwaway database file.
 /// </summary>
-public class PriceHistoryServiceTests : IDisposable
+public class PriceHistoryServiceTests : TempDatabaseTests
 {
     private static readonly DateOnly Today = new(2026, 10, 12);
 
-    private readonly string _path = Path.Combine(Path.GetTempPath(), $"catchit-test-{Guid.NewGuid():N}.db");
-    private readonly Database _db;
     private readonly PriceHistoryService _history;
     private readonly long _listing;
 
     public PriceHistoryServiceTests()
     {
-        _db = new Database(_path);
-        _db.Initialize();
-        _history = new PriceHistoryService(_db);
-        _listing = TestCatalog.AddListing(_db, TestCatalog.AddProduct(_db, "Test Widget"));
+        _history = new PriceHistoryService(Db);
+        _listing = TestCatalog.AddListing(Db, TestCatalog.AddProduct(Db, "Test Widget"));
     }
 
-    public void Dispose()
-    {
-        // SQLite keeps pooled connections open, which would stop the file being deleted.
-        SqliteConnection.ClearAllPools();
-        if (File.Exists(_path)) File.Delete(_path);
-    }
-
-    private long PointCount() => TestCatalog.Count(_db, $"SELECT COUNT(*) FROM PriceHistory WHERE ListingId = {_listing}");
+    private long PointCount() => TestCatalog.Count(Db, $"SELECT COUNT(*) FROM PriceHistory WHERE ListingId = {_listing}");
 
     private double CurrentPrice()
     {
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = $"SELECT CurrentPrice FROM Listings WHERE Id = {_listing}";
         return Convert.ToDouble(cmd.ExecuteScalar());
@@ -201,7 +189,7 @@ public class PriceHistoryServiceTests : IDisposable
     {
         Assert.Throws<ArgumentException>(() => _history.RecordPrice(99999, Today, 40));
 
-        Assert.Equal(0, TestCatalog.Count(_db, "SELECT COUNT(*) FROM PriceExtremes WHERE ListingId = 99999"));
+        Assert.Equal(0, TestCatalog.Count(Db, "SELECT COUNT(*) FROM PriceExtremes WHERE ListingId = 99999"));
     }
 
     // ---- Reading points ----
@@ -210,7 +198,7 @@ public class PriceHistoryServiceTests : IDisposable
     public void GetPoints_ReturnsTheRequestedRangeOldestFirst_Inclusive()
     {
         foreach (var offset in new[] { -30, -20, -10, 0 })
-            TestCatalog.AddPoint(_db, _listing, Today.AddDays(offset), 50 + offset);
+            TestCatalog.AddPoint(Db, _listing, Today.AddDays(offset), 50 + offset);
 
         var points = _history.GetPoints(_listing, Today.AddDays(-20), Today.AddDays(-10));
 
@@ -229,11 +217,11 @@ public class PriceHistoryServiceTests : IDisposable
     [Fact]
     public void GetAverage_UsesPointsInTheWindowBeforeAsOf_AndNotAsOfItself()
     {
-        TestCatalog.AddPoint(_db, _listing, Today.AddDays(-91), 1000); // too old, outside the window
-        TestCatalog.AddPoint(_db, _listing, Today.AddDays(-90), 100);  // first day of the window, included
-        TestCatalog.AddPoint(_db, _listing, Today.AddDays(-45), 80);
-        TestCatalog.AddPoint(_db, _listing, Today.AddDays(-7), 60);
-        TestCatalog.AddPoint(_db, _listing, Today, 5);                 // the day itself, excluded
+        TestCatalog.AddPoint(Db, _listing, Today.AddDays(-91), 1000); // too old, outside the window
+        TestCatalog.AddPoint(Db, _listing, Today.AddDays(-90), 100);  // first day of the window, included
+        TestCatalog.AddPoint(Db, _listing, Today.AddDays(-45), 80);
+        TestCatalog.AddPoint(Db, _listing, Today.AddDays(-7), 60);
+        TestCatalog.AddPoint(Db, _listing, Today, 5);                 // the day itself, excluded
 
         var average = _history.GetAverage(_listing, 90, Today);
 
@@ -245,15 +233,15 @@ public class PriceHistoryServiceTests : IDisposable
     {
         Assert.Null(_history.GetAverage(_listing, 90, Today));
 
-        TestCatalog.AddPoint(_db, _listing, Today.AddDays(-3), 50);
+        TestCatalog.AddPoint(Db, _listing, Today.AddDays(-3), 50);
         Assert.Null(_history.GetAverage(_listing, 90, Today));
     }
 
     [Fact]
     public void GetAverage_WithTwoPoints_ReturnsTheirAverage()
     {
-        TestCatalog.AddPoint(_db, _listing, Today.AddDays(-14), 50);
-        TestCatalog.AddPoint(_db, _listing, Today.AddDays(-7), 70);
+        TestCatalog.AddPoint(Db, _listing, Today.AddDays(-14), 50);
+        TestCatalog.AddPoint(Db, _listing, Today.AddDays(-7), 70);
 
         Assert.Equal(60.0, _history.GetAverage(_listing, 90, Today)!.Value, 6);
     }
@@ -261,11 +249,11 @@ public class PriceHistoryServiceTests : IDisposable
     [Fact]
     public void GetAverage_IgnoresOtherListings()
     {
-        var other = TestCatalog.AddListing(_db, TestCatalog.AddProduct(_db, "Other Widget"), "OtherMarket");
-        TestCatalog.AddPoint(_db, _listing, Today.AddDays(-14), 50);
-        TestCatalog.AddPoint(_db, _listing, Today.AddDays(-7), 70);
-        TestCatalog.AddPoint(_db, other, Today.AddDays(-14), 1000);
-        TestCatalog.AddPoint(_db, other, Today.AddDays(-7), 1000);
+        var other = TestCatalog.AddListing(Db, TestCatalog.AddProduct(Db, "Other Widget"), "OtherMarket");
+        TestCatalog.AddPoint(Db, _listing, Today.AddDays(-14), 50);
+        TestCatalog.AddPoint(Db, _listing, Today.AddDays(-7), 70);
+        TestCatalog.AddPoint(Db, other, Today.AddDays(-14), 1000);
+        TestCatalog.AddPoint(Db, other, Today.AddDays(-7), 1000);
 
         Assert.Equal(60.0, _history.GetAverage(_listing, 90, Today)!.Value, 6);
     }

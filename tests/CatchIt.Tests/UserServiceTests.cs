@@ -1,35 +1,24 @@
 using CatchIt.Core.Auth;
 using CatchIt.Core.Data;
-using Microsoft.Data.Sqlite;
 
 namespace CatchIt.Tests;
 
-public class UserServiceTests : IDisposable
+public class UserServiceTests : TempDatabaseTests
 {
     private const string GoodEmail = "shopper@example.com";
     private const string GoodPassword = "Passw0rd1";
 
-    private readonly string _path = Path.Combine(Path.GetTempPath(), $"catchit-test-{Guid.NewGuid():N}.db");
-    private readonly Database _db;
     private readonly Session _session = new();
     private readonly UserService _users;
 
     public UserServiceTests()
     {
-        _db = new Database(_path);
-        _db.Initialize();
-        _users = new UserService(_db, _session);
-    }
-
-    public void Dispose()
-    {
-        SqliteConnection.ClearAllPools();
-        if (File.Exists(_path)) File.Delete(_path);
+        _users = new UserService(Db, _session);
     }
 
     private long UserCount()
     {
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM Users";
         return (long)cmd.ExecuteScalar()!;
@@ -52,7 +41,7 @@ public class UserServiceTests : IDisposable
     {
         _users.Register(GoodEmail, GoodPassword);
 
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT PasswordHash FROM Users WHERE Email = $e";
         cmd.Parameters.AddWithValue("$e", GoodEmail);
@@ -212,7 +201,7 @@ public class UserServiceTests : IDisposable
     [Fact]
     public void Login_SeededDemoUser_Works()
     {
-        new Seeder(_db).Run();
+        new Seeder(Db).Run();
 
         var result = _users.Login("demo@catchit.test", "Demo1234!");
 

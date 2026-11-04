@@ -51,6 +51,8 @@ static class Program
         var confirmation = new ConfirmationService(db, session, DeliverSimulatedEmail);
         var profile = new ProfileService(db, session);
         var listingSearch = new ListingSearchService(db);
+        var productDetails = new ProductDetailService(db);
+        var watchlist = new WatchlistService(db, session);
 
         // Login -> main window. Logging out (or choosing to log in from guest mode)
         // comes back to the login form; closing either window exits the app.
@@ -60,7 +62,7 @@ static class Program
             if (login.ShowDialog() != DialogResult.OK)
                 break;
 
-            using var main = new MainForm(users, session, confirmation, profile, listingSearch);
+            using var main = new MainForm(users, session, confirmation, profile, listingSearch, productDetails, watchlist);
             main.ShowDialog();
             if (!main.ReturnToLogin)
                 break;

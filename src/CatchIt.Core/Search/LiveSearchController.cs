@@ -45,7 +45,7 @@ public sealed class LiveSearchController<TPage> : IDisposable
     /// <summary>Raised when the newest request failed (for example the database could not be read).</summary>
     public event EventHandler<Exception>? SearchFailed;
 
-    /// <summary>Creates a controller from two search functions. Most callers use <see cref="LiveSearchController.For(ProductSearchService, int, TimeSpan?)"/>.</summary>
+    /// <summary>Creates a controller from two search functions. Most callers use <see cref="LiveSearchController.For(ListingSearchService, Func{ListingFilters}, int, TimeSpan?)"/>.</summary>
     /// <param name="quick">The fast search used while typing.</param>
     /// <param name="full">The full search used on Submit.</param>
     /// <param name="debounce">How long to wait after the last keystroke. Defaults to <see cref="DefaultDebounce"/>.</param>
@@ -154,16 +154,6 @@ public sealed class LiveSearchController<TPage> : IDisposable
 /// <summary>Ready-made <see cref="LiveSearchController{TPage}"/> setups for the app's search services.</summary>
 public static class LiveSearchController
 {
-    /// <summary>A controller for product-level results.</summary>
-    /// <param name="search">The service to search with.</param>
-    /// <param name="limit">How many hits each search returns at most.</param>
-    /// <param name="debounce">How long to wait after the last keystroke.</param>
-    public static LiveSearchController<SearchPage> For(ProductSearchService search, int limit = 50, TimeSpan? debounce = null) =>
-        new(
-            (text, token) => search.QuickSearchAsync(text, limit, cancellationToken: token),
-            (text, token) => search.SearchAsync(text, limit, token),
-            debounce);
-
     /// <summary>A controller for marketplace listings, cheapest first, with filters.</summary>
     /// <param name="search">The service to search with.</param>
     /// <param name="currentFilters">
