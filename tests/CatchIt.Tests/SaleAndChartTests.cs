@@ -1,31 +1,15 @@
 using CatchIt.Core.Data;
 using CatchIt.Core.Pricing;
 using CatchIt.Core.Search;
-using Microsoft.Data.Sqlite;
 
 namespace CatchIt.Tests;
 
 /// <summary>
 /// Tests for the On Sale rule, the named sale periods, seasonal drops and the chart calculations.
 /// </summary>
-public class SaleAndChartTests : IDisposable
+public class SaleAndChartTests : TempDatabaseTests
 {
     private static readonly DateOnly Today = new(2026, 11, 3);
-
-    private readonly string _path = Path.Combine(Path.GetTempPath(), $"catchit-test-{Guid.NewGuid():N}.db");
-    private readonly Database _db;
-
-    public SaleAndChartTests()
-    {
-        _db = new Database(_path);
-        _db.Initialize();
-    }
-
-    public void Dispose()
-    {
-        SqliteConnection.ClearAllPools();
-        if (File.Exists(_path)) File.Delete(_path);
-    }
 
     private static PricePoint P(DateOnly date, double price) => new(date, price);
 
@@ -46,8 +30,8 @@ public class SaleAndChartTests : IDisposable
     /// <summary>Adds a listing with one weekly point at <paramref name="historyPrice"/> for the ten weeks before today.</summary>
     private long AddListing(string name, double? currentPrice, double historyPrice, int weeks = 10)
     {
-        var listing = TestCatalog.AddListing(_db, TestCatalog.AddProduct(_db, name, keywords: "salecheck"), currentPrice: currentPrice);
-        for (var i = 1; i <= weeks; i++) TestCatalog.AddPoint(_db, listing, Today.AddDays(-7 * i), historyPrice);
+        var listing = TestCatalog.AddListing(Db, TestCatalog.AddProduct(Db, name, keywords: "salecheck"), currentPrice: currentPrice);
+        for (var i = 1; i <= weeks; i++) TestCatalog.AddPoint(Db, listing, Today.AddDays(-7 * i), historyPrice);
         return listing;
     }
 
@@ -57,11 +41,11 @@ public class SaleAndChartTests : IDisposable
         var cheap = AddListing("Deal Gadget", 85, 100);          // 15% below its average
         var equal = AddListing("Equal Gadget", 100, 100);         // equal
         var near = AddListing("Near Gadget", 95, 100);            // only 5% below
-        var lone = TestCatalog.AddListing(_db, TestCatalog.AddProduct(_db, "Lone Gadget", keywords: "salecheck"), currentPrice: 10);
-        TestCatalog.AddPoint(_db, lone, Today.AddDays(-7), 100); // one point: not enough history for an average
+        var lone = TestCatalog.AddListing(Db, TestCatalog.AddProduct(Db, "Lone Gadget", keywords: "salecheck"), currentPrice: 10);
+        TestCatalog.AddPoint(Db, lone, Today.AddDays(-7), 100); // one point: not enough history for an average
         var unpriced = AddListing("Unpriced Gadget", null, 100);
 
-        var service = new ListingSearchService(_db, Today);
+        var service = new ListingSearchService(Db, Today);
         var pages = new[]
         {
             service.Search("salecheck"),
@@ -84,11 +68,11 @@ public class SaleAndChartTests : IDisposable
     [Fact]
     public void SearchResultFlags_MatchTheSingleListingCalculation_ForEveryListingInTheSeededCatalog()
     {
-        new Seeder(_db).Run();
+        new Seeder(Db).Run();
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var history = new PriceHistoryService(_db);
+        var history = new PriceHistoryService(Db);
 
-        var page = new ListingSearchService(_db).Search(null, limit: 500);
+        var page = new ListingSearchService(Db).Search(null, limit: 500);
 
         Assert.True(page.Hits.Count > 20);
         foreach (var hit in page.Hits)

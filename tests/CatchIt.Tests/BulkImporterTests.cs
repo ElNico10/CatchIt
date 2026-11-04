@@ -69,11 +69,10 @@ public class BulkImporterTests : IDisposable
     public void Import_ProductsAreSearchableByNameAndByBrand()
     {
         _importer.Import(new[] { new ImportedProduct("Zorblax 100 Speaker", "Quuxco", 2, "audio", 59.99) });
-        var search = new ProductSearchService(_db);
 
-        Assert.Single(search.Search("zorblax").Hits);
-        Assert.Single(search.Search("quux").Hits);   // a brand-only search finds it too
-        Assert.Single(search.Search("audio").Hits);
+        Assert.Equal(1, TestCatalog.ProductsMatching(_db, "zorblax"));
+        Assert.Equal(1, TestCatalog.ProductsMatching(_db, "quux"));   // a brand-only search finds it too
+        Assert.Equal(1, TestCatalog.ProductsMatching(_db, "audio"));
     }
 
     [Fact]
@@ -187,9 +186,9 @@ public class BulkImporterTests : IDisposable
     {
         _importer.Import(Batch(10));
 
-        TestCatalog.AddProduct(_db, "Added After Import Lamp", "Lumo", 2, "lighting");
+        TestCatalog.AddListing(_db, TestCatalog.AddProduct(_db, "Added After Import Lamp", "Lumo", 2, "lighting"));
 
-        Assert.Single(new ProductSearchService(_db).Search("lamp").Hits);
+        Assert.Equal(1, TestCatalog.ProductsMatching(_db, "lamp"));
     }
 
     [Fact]
@@ -215,11 +214,10 @@ public class BulkImporterTests : IDisposable
         // The row-by-row search triggers were dropped during the import; the rollback must restore them.
         Assert.Equal(1, TestCatalog.Count(_db,
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = 'Products_search_insert'"));
-        var search = new ProductSearchService(_db);
-        Assert.Equal(0, search.Search("doomed").TotalMatches);
-        Assert.Equal(20, search.Search("gadget").TotalMatches);
-        TestCatalog.AddProduct(_db, "Post Failure Lamp", "Lumo", 2, "lighting");
-        Assert.Single(search.Search("lamp").Hits);
+        Assert.Equal(0, TestCatalog.ProductsMatching(_db, "doomed"));
+        Assert.Equal(20, TestCatalog.ProductsMatching(_db, "gadget"));
+        TestCatalog.AddListing(_db, TestCatalog.AddProduct(_db, "Post Failure Lamp", "Lumo", 2, "lighting"));
+        Assert.Equal(1, TestCatalog.ProductsMatching(_db, "lamp"));
     }
 
     [Fact]

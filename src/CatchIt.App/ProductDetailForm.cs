@@ -20,6 +20,7 @@ public partial class ProductDetailForm : Form
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
     private readonly ProductDetailService _service;
+    private readonly WatchlistService _watchlist;
     private readonly ProductDetail? _detail;
     private readonly DateOnly _today;
 
@@ -28,10 +29,12 @@ public partial class ProductDetailForm : Form
 
     /// <summary>Creates the window for a listing.</summary>
     /// <param name="service">Supplies the listing's details.</param>
+    /// <param name="watchlist">Used by the Add to / Remove from watchlist button.</param>
     /// <param name="listingId">The listing to show, as listed by the search screen.</param>
-    public ProductDetailForm(ProductDetailService service, long listingId)
+    public ProductDetailForm(ProductDetailService service, WatchlistService watchlist, long listingId)
     {
         _service = service;
+        _watchlist = watchlist;
         _today = service.Today;
         InitializeComponent();
         lblDisclaimer.Text = Disclaimer.SimulatedData;
@@ -43,10 +46,12 @@ public partial class ProductDetailForm : Form
             lblTitle.Text = "This listing is no longer available.";
             flowRange.Enabled = false;
             chart.Visible = false;
+            btnWatch.Visible = false;
             return;
         }
 
         ShowListing(_detail);
+        ShowWatchButton();
         ShowAlternatives(_detail.Alternatives);
 
         // Open on the longest range the history actually covers (12 months when there is that much).
@@ -85,6 +90,21 @@ public partial class ProductDetailForm : Form
             $"Seller rating (simulated): {listing.SellerRating.ToString("0.0", Invariant)} / 5",
         };
         lblFacts.Text = string.Join(Environment.NewLine + Environment.NewLine, lines);
+    }
+
+    // ---- The watchlist ----
+
+    /// <summary>Makes the button say what a click will do. Guests see "Add" too; clicking it explains they need to log in.</summary>
+    private void ShowWatchButton() =>
+        btnWatch.Text = _watchlist.IsWatching(_detail!.Listing.ProductId) ? "Remove from watchlist" : "Add to watchlist";
+
+    private void btnWatch_Click(object? sender, EventArgs e)
+    {
+        var productId = _detail!.Listing.ProductId;
+        var result = _watchlist.IsWatching(productId) ? _watchlist.Remove(productId) : _watchlist.Add(productId);
+        lblWatchStatus.ForeColor = result.Success ? Color.ForestGreen : Color.Firebrick;
+        lblWatchStatus.Text = result.Message;
+        ShowWatchButton();
     }
 
     // ---- The chart ----
@@ -193,7 +213,7 @@ public partial class ProductDetailForm : Form
 
     private void OpenAlternative(AlternativeSuggestion alt)
     {
-        using var window = new ProductDetailForm(_service, alt.ListingId);
+        using var window = new ProductDetailForm(_service, _watchlist, alt.ListingId);
         window.ShowDialog(this);
     }
 }

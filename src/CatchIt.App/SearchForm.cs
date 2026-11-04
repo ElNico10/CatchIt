@@ -33,6 +33,7 @@ public partial class SearchForm : Form
 
     private readonly LiveSearchController<ListingSearchPage> _controller;
     private readonly ProductDetailService _details;
+    private readonly WatchlistService _watchlist;
 
     // The filters currently chosen. The background search reads this when it runs, so it holds an immutable
     // record that the screen replaces as a whole (never a control, which must only be touched on this thread).
@@ -47,9 +48,11 @@ public partial class SearchForm : Form
     /// <summary>Creates the search screen.</summary>
     /// <param name="search">The service that finds the listings.</param>
     /// <param name="details">Supplies the detail window opened by double-clicking a listing.</param>
-    public SearchForm(ListingSearchService search, ProductDetailService details)
+    /// <param name="watchlist">Passed on to the detail window for its watchlist button.</param>
+    public SearchForm(ListingSearchService search, ProductDetailService details, WatchlistService watchlist)
     {
         _details = details;
+        _watchlist = watchlist;
         InitializeComponent();
         lblDisclaimer.Text = Disclaimer.SimulatedData;
 
@@ -102,7 +105,7 @@ public partial class SearchForm : Form
     {
         if (e.RowIndex < 0 || dgvResults.Rows[e.RowIndex].DataBoundItem is not ResultRow row) return;
 
-        using var window = new ProductDetailForm(_details, row.ListingId);
+        using var window = new ProductDetailForm(_details, _watchlist, row.ListingId);
         window.ShowDialog(this);
     }
 
@@ -146,7 +149,7 @@ public partial class SearchForm : Form
         lblStatus.ForeColor = SystemColors.ControlText;
 
         // Text with no searchable words (empty, spaces or punctuation) means the whole catalog is being browsed.
-        lblStatus.Text = StatusFor(page, browsing: ProductSearchService.BuildQuery(result.Text) == null);
+        lblStatus.Text = StatusFor(page, browsing: SearchQuery.Build(result.Text) == null);
     }
 
     private void OnSearchFailed(object? sender, Exception error)

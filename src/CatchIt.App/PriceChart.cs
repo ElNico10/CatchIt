@@ -37,10 +37,7 @@ public class PriceChart : Control
     }
 
     /// <summary>Whether the current points are enough to draw a chart.</summary>
-    public bool HasChart => PriceChartMath.HasEnoughHistory(_points);
-
-    /// <summary>The index (into the points last given) of the point the mouse is nearest, or -1 for none.</summary>
-    public int HoverIndex => _hover;
+    private bool HasChart => PriceChartMath.HasEnoughHistory(_points);
 
     /// <summary>Replaces the points being charted.</summary>
     /// <param name="points">The prices to draw, oldest first.</param>

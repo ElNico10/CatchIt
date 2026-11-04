@@ -1,6 +1,5 @@
 using CatchIt.Core.Auth;
 using CatchIt.Core.Data;
-using Microsoft.Data.Sqlite;
 
 namespace CatchIt.Tests;
 
@@ -13,13 +12,11 @@ namespace CatchIt.Tests;
 /// records the email and code it was given (instead of showing a window), and the clock is a
 /// field the tests can move forward to simulate time passing.
 /// </remarks>
-public class ConfirmationServiceTests : IDisposable
+public class ConfirmationServiceTests : TempDatabaseTests
 {
     private const string Email = "shopper@example.com";
     private const string Password = "Passw0rd1";
 
-    private readonly string _path = Path.Combine(Path.GetTempPath(), $"catchit-test-{Guid.NewGuid():N}.db");
-    private readonly Database _db;
     private readonly Session _session = new();
     private readonly UserService _users;
     private readonly ConfirmationService _confirm;
@@ -34,19 +31,10 @@ public class ConfirmationServiceTests : IDisposable
 
     public ConfirmationServiceTests()
     {
-        _db = new Database(_path);
-        _db.Initialize();
-        _users = new UserService(_db, _session);
-        _confirm = new ConfirmationService(_db, _session,
+        _users = new UserService(Db, _session);
+        _confirm = new ConfirmationService(Db, _session,
             (email, code) => { _deliveredTo = email; _deliveredCode = code; _deliveries++; },
             () => _now);
-    }
-
-    public void Dispose()
-    {
-        // SQLite keeps pooled connections open, which would stop the file being deleted.
-        SqliteConnection.ClearAllPools();
-        if (File.Exists(_path)) File.Delete(_path);
     }
 
     /// <summary>Creates an unconfirmed account and logs into it, leaving the session ready for confirmation.</summary>
@@ -59,7 +47,7 @@ public class ConfirmationServiceTests : IDisposable
     /// <summary>Reads the confirmed flag straight from the database, bypassing the session.</summary>
     private bool IsConfirmedInDatabase()
     {
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT IsConfirmed FROM Users WHERE Email = $e";
         cmd.Parameters.AddWithValue("$e", Email);
@@ -82,7 +70,7 @@ public class ConfirmationServiceTests : IDisposable
     public void ConfirmedUser_DoesNotNeedConfirmation()
     {
         // The seeded demo account is created already confirmed.
-        new Seeder(_db).Run();
+        new Seeder(Db).Run();
         _users.Login("demo@catchit.test", "Demo1234!");
 
         Assert.False(_session.NeedsConfirmation);
@@ -129,7 +117,7 @@ public class ConfirmationServiceTests : IDisposable
     [Fact]
     public void RequestCode_WhenAlreadyConfirmed_Fails()
     {
-        new Seeder(_db).Run();
+        new Seeder(Db).Run();
         _users.Login("demo@catchit.test", "Demo1234!");
 
         var result = _confirm.RequestCode();

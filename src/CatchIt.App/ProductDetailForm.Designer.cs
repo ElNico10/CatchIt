@@ -24,6 +24,8 @@ partial class ProductDetailForm
         lblPrice = new Label();
         lblOnSale = new Label();
         lblFacts = new Label();
+        btnWatch = new Button();
+        lblWatchStatus = new Label();
         flowRange = new FlowLayoutPanel();
         rbThreeMonths = new RadioButton();
         rbSixMonths = new RadioButton();
@@ -85,6 +87,23 @@ partial class ProductDetailForm
         lblFacts.Name = "lblFacts";
         lblFacts.Size = new Size(310, 150);
         lblFacts.TabIndex = 4;
+        //
+        // btnWatch
+        //
+        btnWatch.Location = new Point(196, 150);
+        btnWatch.Name = "btnWatch";
+        btnWatch.Size = new Size(146, 32);
+        btnWatch.TabIndex = 12;
+        btnWatch.Text = "Add to watchlist";
+        btnWatch.UseVisualStyleBackColor = true;
+        btnWatch.Click += btnWatch_Click;
+        //
+        // lblWatchStatus
+        //
+        lblWatchStatus.Location = new Point(32, 346);
+        lblWatchStatus.Name = "lblWatchStatus";
+        lblWatchStatus.Size = new Size(310, 52);
+        lblWatchStatus.TabIndex = 13;
         //
         // flowRange
         //
@@ -209,6 +228,8 @@ partial class ProductDetailForm
         Controls.Add(lblPrice);
         Controls.Add(lblOnSale);
         Controls.Add(lblFacts);
+        Controls.Add(btnWatch);
+        Controls.Add(lblWatchStatus);
         Controls.Add(flowRange);
         Controls.Add(chart);
         Controls.Add(lblAlternatives);
@@ -236,6 +257,8 @@ partial class ProductDetailForm
     private Label lblPrice;
     private Label lblOnSale;
     private Label lblFacts;
+    private Button btnWatch;
+    private Label lblWatchStatus;
     private FlowLayoutPanel flowRange;
     private RadioButton rbThreeMonths;
     private RadioButton rbSixMonths;

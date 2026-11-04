@@ -1,6 +1,5 @@
 using CatchIt.Core.Data;
 using CatchIt.Core.Search;
-using Microsoft.Data.Sqlite;
 
 namespace CatchIt.Tests;
 
@@ -8,45 +7,26 @@ namespace CatchIt.Tests;
 /// Tests for <see cref="ProductDetailService"/>: the details of a listing and how the three alternative
 /// slots (cheapest option, better reviewed, may drop soon) are filled from the stored alternatives.
 /// </summary>
-public class ProductDetailServiceTests : IDisposable
+public class ProductDetailServiceTests : TempDatabaseTests
 {
     private static readonly DateOnly Today = new(2026, 11, 3);
     private static readonly DateOnly BlackFridayLastYear = new(2025, 11, 28);
 
-    private readonly string _path = Path.Combine(Path.GetTempPath(), $"catchit-test-{Guid.NewGuid():N}.db");
-    private readonly Database _db;
     private readonly ProductDetailService _service;
 
     public ProductDetailServiceTests()
     {
-        _db = new Database(_path);
-        _db.Initialize();
-        _service = new ProductDetailService(_db, Today);
-    }
-
-    public void Dispose()
-    {
-        SqliteConnection.ClearAllPools();
-        if (File.Exists(_path)) File.Delete(_path);
-    }
-
-    private void Sql(string sql, params (string, object?)[] args)
-    {
-        using var conn = _db.Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = sql;
-        foreach (var (k, v) in args) cmd.Parameters.AddWithValue(k, v ?? DBNull.Value);
-        cmd.ExecuteNonQuery();
+        _service = new ProductDetailService(Db, Today);
     }
 
     /// <summary>Adds a product with one listing; returns (product id, listing id).</summary>
     private (long Product, long Listing) Add(string name, string brand, int tier, double? price,
         double? rating = null, int? ratingCount = null)
     {
-        var product = TestCatalog.AddProduct(_db, name, brand, tier);
+        var product = TestCatalog.AddProduct(Db, name, brand, tier);
         Sql("UPDATE Products SET AverageRating = $r, RatingCount = $c WHERE Id = $p",
             ("$r", rating), ("$c", ratingCount), ("$p", product));
-        return (product, TestCatalog.AddListing(_db, product, "Shop", price));
+        return (product, TestCatalog.AddListing(Db, product, "Shop", price));
     }
 
     private void Link(long product, long alternative) =>
@@ -63,8 +43,8 @@ public class ProductDetailServiceTests : IDisposable
         foreach (var alt in new[] { cheap, loved, fake, dipper }) Link(main.Product, alt.Product);
 
         // The dipper cost $60 around Black Friday last year (a 40% drop); the cheap one only dipped 5%.
-        TestCatalog.AddPoint(_db, dipper.Listing, BlackFridayLastYear, 60);
-        TestCatalog.AddPoint(_db, cheap.Listing, BlackFridayLastYear, 38);
+        TestCatalog.AddPoint(Db, dipper.Listing, BlackFridayLastYear, 60);
+        TestCatalog.AddPoint(Db, cheap.Listing, BlackFridayLastYear, 38);
         return (main.Listing, cheap.Listing, loved.Listing, fake.Listing, dipper.Listing);
     }
 
@@ -80,7 +60,7 @@ public class ProductDetailServiceTests : IDisposable
     {
         var item = Add("Widget", "AcmeCo", 2, 80, rating: 4.2, ratingCount: 321);
         Sql("UPDATE Products SET Category = 'Gadgets > Widgets' WHERE Id = $p", ("$p", item.Product));
-        for (var i = 1; i <= 10; i++) TestCatalog.AddPoint(_db, item.Listing, Today.AddDays(-7 * i), 100);
+        for (var i = 1; i <= 10; i++) TestCatalog.AddPoint(Db, item.Listing, Today.AddDays(-7 * i), 100);
         Sql("INSERT INTO PriceExtremes (ListingId, LowPrice, LowDate, HighPrice, HighDate) VALUES ($l, 70, '2026-03-01', 120, '2025-12-10')",
             ("$l", item.Listing));
 
@@ -104,7 +84,7 @@ public class ProductDetailServiceTests : IDisposable
     public void GetDetail_DoesNotFlagOnSaleWithoutEnoughHistory()
     {
         var item = Add("Thin History Widget", "AcmeCo", 2, 10);
-        TestCatalog.AddPoint(_db, item.Listing, Today.AddDays(-7), 100);
+        TestCatalog.AddPoint(Db, item.Listing, Today.AddDays(-7), 100);
 
         var d = _service.GetDetail(item.Listing)!;
 
@@ -183,7 +163,7 @@ public class ProductDetailServiceTests : IDisposable
         var main = Add("Main", "PremiumCo", 3, 100);
         var alt = Add("Barely Dips", "SameTierCo", 3, 100);
         Link(main.Product, alt.Product);
-        TestCatalog.AddPoint(_db, alt.Listing, BlackFridayLastYear, 95);
+        TestCatalog.AddPoint(Db, alt.Listing, BlackFridayLastYear, 95);
 
         Assert.Empty(_service.GetDetail(main.Listing)!.Alternatives);
     }
@@ -193,7 +173,7 @@ public class ProductDetailServiceTests : IDisposable
     {
         var s = Scenario();
         // Make the cheap one also the biggest dipper: 50% cheaper last Black Friday than now.
-        TestCatalog.AddPoint(_db, s.Cheap, new DateOnly(2025, 11, 29), 20);
+        TestCatalog.AddPoint(Db, s.Cheap, new DateOnly(2025, 11, 29), 20);
 
         var d = _service.GetDetail(s.Main)!;
 
@@ -241,7 +221,7 @@ public class ProductDetailServiceTests : IDisposable
         var main = Add("Main", "PremiumCo", 3, 100);
         var alt = Add("Alt", "BudgetCo", 1, 80);
         Link(main.Product, alt.Product);
-        TestCatalog.AddListing(_db, alt.Product, "Other Shop", 55);   // a second, cheaper marketplace
+        TestCatalog.AddListing(Db, alt.Product, "Other Shop", 55);   // a second, cheaper marketplace
 
         var card = Assert.Single(_service.GetDetail(main.Listing)!.Alternatives);
 

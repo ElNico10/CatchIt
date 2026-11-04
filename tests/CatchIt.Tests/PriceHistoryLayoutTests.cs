@@ -9,31 +9,15 @@ namespace CatchIt.Tests;
 /// without a separate row id), and for upgrading a database that still has the original, larger layout.
 /// Each test gets its own throwaway database file.
 /// </summary>
-public class PriceHistoryLayoutTests : IDisposable
+public class PriceHistoryLayoutTests : TempDatabaseTests
 {
     private static readonly DateOnly Today = new(2026, 10, 12);
 
-    private readonly string _path = Path.Combine(Path.GetTempPath(), $"catchit-test-{Guid.NewGuid():N}.db");
-    private readonly Database _db;
-
-    public PriceHistoryLayoutTests()
-    {
-        _db = new Database(_path);
-        _db.Initialize();
-    }
-
-    public void Dispose()
-    {
-        // SQLite keeps pooled connections open, which would stop the file being deleted.
-        SqliteConnection.ClearAllPools();
-        if (File.Exists(_path)) File.Delete(_path);
-    }
-
-    private long Count(string sql) => TestCatalog.Count(_db, sql);
+    private long Count(string sql) => TestCatalog.Count(Db, sql);
 
     private void Run(string sql)
     {
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         cmd.ExecuteNonQuery();
@@ -41,7 +25,7 @@ public class PriceHistoryLayoutTests : IDisposable
 
     private List<string> PriceHistoryColumns()
     {
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT name FROM pragma_table_info('PriceHistory') ORDER BY cid";
         using var reader = cmd.ExecuteReader();
@@ -52,7 +36,7 @@ public class PriceHistoryLayoutTests : IDisposable
 
     private string PriceHistorySql()
     {
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT sql FROM sqlite_master WHERE name = 'PriceHistory'";
         return (string)cmd.ExecuteScalar()!;
@@ -61,7 +45,7 @@ public class PriceHistoryLayoutTests : IDisposable
     /// <summary>Every stored point, in a fixed order, for comparing before and after an upgrade.</summary>
     private List<(long Listing, string Date, double Price)> AllPoints()
     {
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT ListingId, Date, Price FROM PriceHistory ORDER BY ListingId, Date";
         using var reader = cmd.ExecuteReader();
@@ -77,7 +61,7 @@ public class PriceHistoryLayoutTests : IDisposable
     private long[] MakeOldLayoutDatabase(int listings, int daysEach)
     {
         var ids = Enumerable.Range(0, listings)
-            .Select(i => TestCatalog.AddListing(_db, TestCatalog.AddProduct(_db, $"Old Widget {i}"), $"Market{i % 3}"))
+            .Select(i => TestCatalog.AddListing(Db, TestCatalog.AddProduct(Db, $"Old Widget {i}"), $"Market{i % 3}"))
             .ToArray();
 
         Run("DROP TABLE PriceHistory");
@@ -91,7 +75,7 @@ public class PriceHistoryLayoutTests : IDisposable
             );
             """);
 
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var tx = conn.BeginTransaction();
         using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
@@ -128,18 +112,18 @@ public class PriceHistoryLayoutTests : IDisposable
     [Fact]
     public void ThePrimaryKeyRejectsASecondPointForTheSameListingAndDay()
     {
-        var listing = TestCatalog.AddListing(_db, TestCatalog.AddProduct(_db, "Widget"));
-        TestCatalog.AddPoint(_db, listing, Today, 40);
+        var listing = TestCatalog.AddListing(Db, TestCatalog.AddProduct(Db, "Widget"));
+        TestCatalog.AddPoint(Db, listing, Today, 40);
 
-        Assert.Throws<SqliteException>(() => TestCatalog.AddPoint(_db, listing, Today, 41));
+        Assert.Throws<SqliteException>(() => TestCatalog.AddPoint(Db, listing, Today, 41));
         Assert.Equal(1, Count("SELECT COUNT(*) FROM PriceHistory"));
     }
 
     [Fact]
     public void InsertOrIgnore_SkipsADuplicateWithoutAnError_AndKeepsTheFirstPrice()
     {
-        var listing = TestCatalog.AddListing(_db, TestCatalog.AddProduct(_db, "Widget"));
-        TestCatalog.AddPoint(_db, listing, Today, 40);
+        var listing = TestCatalog.AddListing(Db, TestCatalog.AddProduct(Db, "Widget"));
+        TestCatalog.AddPoint(Db, listing, Today, 40);
 
         Run($"INSERT OR IGNORE INTO PriceHistory (ListingId, Date, Price) VALUES ({listing}, '2026-10-12', 99)");
 
@@ -151,21 +135,21 @@ public class PriceHistoryLayoutTests : IDisposable
     [InlineData(-1)]
     public void ThePriceMustBePositive(double price)
     {
-        var listing = TestCatalog.AddListing(_db, TestCatalog.AddProduct(_db, "Widget"));
+        var listing = TestCatalog.AddListing(Db, TestCatalog.AddProduct(Db, "Widget"));
 
-        Assert.Throws<SqliteException>(() => TestCatalog.AddPoint(_db, listing, Today, price));
+        Assert.Throws<SqliteException>(() => TestCatalog.AddPoint(Db, listing, Today, price));
     }
 
     [Fact]
     public void AHistoryPointNeedsAnExistingListing()
     {
-        Assert.Throws<SqliteException>(() => TestCatalog.AddPoint(_db, 99999, Today, 40));
+        Assert.Throws<SqliteException>(() => TestCatalog.AddPoint(Db, 99999, Today, 40));
     }
 
     [Fact]
     public void ReadingOneListingsHistory_UsesThePrimaryKeyNotAScan()
     {
-        using var conn = _db.Open();
+        using var conn = Db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "EXPLAIN QUERY PLAN SELECT Date, Price FROM PriceHistory WHERE ListingId = 5 AND Date >= '2026-01-01'";
         using var reader = cmd.ExecuteReader();
@@ -184,7 +168,7 @@ public class PriceHistoryLayoutTests : IDisposable
         MakeOldLayoutDatabase(listings: 3, daysEach: 120);
         Assert.Contains("Id", PriceHistoryColumns());
 
-        _db.Initialize();
+        Db.Initialize();
 
         Assert.Equal(new[] { "ListingId", "Date", "Price" }, PriceHistoryColumns());
         Assert.Contains("WITHOUT ROWID", PriceHistorySql());
@@ -197,7 +181,7 @@ public class PriceHistoryLayoutTests : IDisposable
         var before = AllPoints();
         Assert.Equal(800, before.Count);
 
-        _db.Initialize();
+        Db.Initialize();
 
         Assert.Equal(before, AllPoints());
     }
@@ -207,7 +191,7 @@ public class PriceHistoryLayoutTests : IDisposable
     {
         MakeOldLayoutDatabase(listings: 2, daysEach: 0);
 
-        _db.Initialize();
+        Db.Initialize();
 
         Assert.Equal(new[] { "ListingId", "Date", "Price" }, PriceHistoryColumns());
         Assert.Equal(0, Count("SELECT COUNT(*) FROM PriceHistory"));
@@ -217,11 +201,11 @@ public class PriceHistoryLayoutTests : IDisposable
     public void Upgrade_HappensOnlyOnce()
     {
         MakeOldLayoutDatabase(listings: 2, daysEach: 50);
-        _db.Initialize();
+        Db.Initialize();
         var afterFirst = AllPoints();
 
-        _db.Initialize();
-        _db.Initialize();
+        Db.Initialize();
+        Db.Initialize();
 
         Assert.Equal(afterFirst, AllPoints());
         Assert.Equal(new[] { "ListingId", "Date", "Price" }, PriceHistoryColumns());
@@ -231,19 +215,19 @@ public class PriceHistoryLayoutTests : IDisposable
     public void Upgrade_TheConvertedTableStillEnforcesItsRules()
     {
         var ids = MakeOldLayoutDatabase(listings: 2, daysEach: 10);
-        _db.Initialize();
+        Db.Initialize();
 
-        Assert.Throws<SqliteException>(() => TestCatalog.AddPoint(_db, ids[0], Today, 55));           // duplicate day
-        Assert.Throws<SqliteException>(() => TestCatalog.AddPoint(_db, ids[0], Today.AddDays(1), 0)); // bad price
-        Assert.Throws<SqliteException>(() => TestCatalog.AddPoint(_db, 99999, Today, 40));            // no such listing
+        Assert.Throws<SqliteException>(() => TestCatalog.AddPoint(Db, ids[0], Today, 55));           // duplicate day
+        Assert.Throws<SqliteException>(() => TestCatalog.AddPoint(Db, ids[0], Today.AddDays(1), 0)); // bad price
+        Assert.Throws<SqliteException>(() => TestCatalog.AddPoint(Db, 99999, Today, 40));            // no such listing
     }
 
     [Fact]
     public void Upgrade_ThePriceServicesKeepWorkingOnTheConvertedTable()
     {
         var ids = MakeOldLayoutDatabase(listings: 1, daysEach: 100);
-        _db.Initialize();
-        var history = new PriceHistoryService(_db);
+        Db.Initialize();
+        var history = new PriceHistoryService(Db);
 
         Assert.Equal(11, history.GetPoints(ids[0], Today.AddDays(-10), Today).Count);
         Assert.NotNull(history.GetAverage(ids[0], 90, Today));
@@ -258,11 +242,11 @@ public class PriceHistoryLayoutTests : IDisposable
     {
         MakeOldLayoutDatabase(listings: 100, daysEach: 400);   // 40,000 daily rows in the old layout
         SqliteConnection.ClearAllPools();
-        var before = new FileInfo(_path).Length;
+        var before = new FileInfo(DbPath).Length;
 
-        _db.Initialize();
+        Db.Initialize();
         SqliteConnection.ClearAllPools();
-        var after = new FileInfo(_path).Length;
+        var after = new FileInfo(DbPath).Length;
 
         Assert.True(after < before * 0.8, $"expected the file to shrink by at least 20%: {before:N0} -> {after:N0} bytes");
     }
@@ -276,7 +260,7 @@ public class PriceHistoryLayoutTests : IDisposable
         // A leftover table with the name the upgrade uses for its copy, but the wrong columns, makes the copy fail.
         Run("CREATE TABLE PriceHistory_compact (unrelated TEXT)");
 
-        Assert.Throws<SqliteException>(() => _db.Initialize());
+        Assert.Throws<SqliteException>(() => Db.Initialize());
 
         Assert.Contains("Id", PriceHistoryColumns());      // still the old layout
         Assert.Equal(before, AllPoints());                  // and nothing was lost
@@ -286,11 +270,11 @@ public class PriceHistoryLayoutTests : IDisposable
     public void Upgrade_DemoDataSeedsAndSearchesNormallyAfterwards()
     {
         MakeOldLayoutDatabase(listings: 1, daysEach: 20);
-        _db.Initialize();
+        Db.Initialize();
 
-        new Seeder(_db).Run();
+        new Seeder(Db).Run();
 
         Assert.True(Count("SELECT COUNT(*) FROM PriceExtremes") > 0);
-        Assert.Equal(3, new CatchIt.Core.Search.ProductSearchService(_db).Search("headphones").TotalMatches);
+        Assert.Equal(3, TestCatalog.ProductsMatching(Db, "headphones"));
     }
 }

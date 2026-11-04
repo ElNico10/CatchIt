@@ -97,12 +97,11 @@ public class SeededPriceDataTests : IDisposable
     [Fact]
     public void TheDemoCatalogIsSearchable()
     {
-        var search = new ProductSearchService(_db);
 
-        Assert.Equal(3, search.Search("headphones").TotalMatches);
-        Assert.Equal(3, search.Search("wireless head").TotalMatches);
-        Assert.Equal(3, search.Search("monitor").TotalMatches);
-        Assert.Equal(1, search.Search("apex wireless").TotalMatches);
+        Assert.Equal(3, TestCatalog.ProductsMatching(_db, "headphones"));
+        Assert.Equal(3, TestCatalog.ProductsMatching(_db, "wireless head"));
+        Assert.Equal(3, TestCatalog.ProductsMatching(_db, "monitor"));
+        Assert.Equal(1, TestCatalog.ProductsMatching(_db, "apex wireless"));
     }
 
     [Fact]
@@ -114,7 +113,7 @@ public class SeededPriceDataTests : IDisposable
         new Seeder(_db).Run();
 
         Assert.Equal(before, tables.Select(t => Count($"SELECT COUNT(*) FROM {t}")).ToArray());
-        Assert.Equal(3, new ProductSearchService(_db).Search("headphones").TotalMatches);
+        Assert.Equal(3, TestCatalog.ProductsMatching(_db, "headphones"));
     }
 
     [Fact]
