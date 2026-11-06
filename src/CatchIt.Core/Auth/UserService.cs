@@ -66,7 +66,7 @@ public class UserService
 
         using var conn = _db.Open();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT Id, Name, Email, PasswordHash, IsConfirmed FROM Users WHERE Email = $e";
+        cmd.CommandText = "SELECT Id, Name, Email, PasswordHash, IsConfirmed, IsAdmin FROM Users WHERE Email = $e";
         cmd.Parameters.AddWithValue("$e", email.Trim());
 
         using var reader = cmd.ExecuteReader();
@@ -77,7 +77,8 @@ public class UserService
         if (!BCrypt.Net.BCrypt.Verify(password, hash))
             return AuthResult.Fail(InvalidLoginMessage);
 
-        var user = new User(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetInt64(4) == 1);
+        var user = new User(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetInt64(4) == 1,
+            IsAdmin: reader.GetInt64(5) == 1);
         _session.SignIn(user);
         return AuthResult.Ok(user);
     }

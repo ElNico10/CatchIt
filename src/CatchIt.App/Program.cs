@@ -1,5 +1,6 @@
 using CatchIt.Core.Auth;
 using CatchIt.Core.Data;
+using CatchIt.Core.Pricing;
 using CatchIt.Core.Search;
 
 namespace CatchIt.App;
@@ -13,7 +14,10 @@ static class Program
     ///  The main entry point for the application.
     ///  Run with "--seed" to populate the database with simulated demo data and exit.
     /// </summary>
-    /// <param name="args">Command-line arguments. Only <c>--seed</c> is recognised.</param>
+    /// <param name="args">
+    /// Command-line arguments: <c>--seed</c>, <c>--import &lt;file&gt; [--limit N]</c>, or
+    /// <c>--refresh-prices &lt;admin email&gt; &lt;password&gt;</c>.
+    /// </param>
     [STAThread]
     static void Main(string[] args)
     {
@@ -45,6 +49,15 @@ static class Program
             return;
         }
 
+        // Price refresh mode: "--refresh-prices <admin email> <password>" logs in as an
+        // administrator, refreshes the simulated prices (issue #19) and exits.
+        var refreshAt = Array.IndexOf(args, "--refresh-prices");
+        if (refreshAt >= 0)
+        {
+            RunPriceRefresh(db, args, refreshAt);
+            return;
+        }
+
         // Creates the tables on first run; does nothing if they already exist.
         db.Initialize();
         ApplicationConfiguration.Initialize();
@@ -59,6 +72,7 @@ static class Program
         var productDetails = new ProductDetailService(db);
         var watchlist = new WatchlistService(db, session);
         var dashboard = new DashboardService(watchlist, db);
+        var priceRefresh = new PriceRefreshService(db, session);
 
         // Login -> main window. Logging out (or choosing to log in from guest mode)
         // comes back to the login form; closing either window exits the app.
@@ -68,7 +82,7 @@ static class Program
             if (login.ShowDialog() != DialogResult.OK)
                 break;
 
-            using var main = new MainForm(users, session, confirmation, profile, listingSearch, productDetails, watchlist, dashboard);
+            using var main = new MainForm(users, session, confirmation, profile, listingSearch, productDetails, watchlist, dashboard, priceRefresh);
             main.ShowDialog();
             if (!main.ReturnToLogin)
                 break;
@@ -105,6 +119,43 @@ static class Program
         catch (Exception ex)
         {
             MessageBox.Show($"The import failed and the database was left as it was:\n{ex.Message}", "CatchIt import");
+        }
+    }
+
+    /// <summary>
+    /// Runs <c>--refresh-prices</c>: logs in with the given account and refreshes prices if it is an
+    /// administrator. Non-admins are refused and nothing changes. The result is shown in a message box.
+    /// </summary>
+    /// <param name="db">The database to refresh.</param>
+    /// <param name="args">The command line.</param>
+    /// <param name="refreshAt">Where <c>--refresh-prices</c> is in <paramref name="args"/>; the email and password follow it.</param>
+    private static void RunPriceRefresh(Database db, string[] args, int refreshAt)
+    {
+        const string title = "CatchIt price refresh";
+        if (refreshAt + 2 >= args.Length)
+        {
+            MessageBox.Show("Usage: CatchIt.App.exe --refresh-prices <admin email> <password>", title);
+            return;
+        }
+
+        try
+        {
+            db.Initialize();
+            var session = new Session();
+            var login = new UserService(db, session).Login(args[refreshAt + 1], args[refreshAt + 2]);
+            if (!login.Success)
+            {
+                MessageBox.Show($"Could not log in: {login.Error}", title);
+                return;
+            }
+
+            var result = new PriceRefreshService(db, session).Refresh();
+            MessageBox.Show(result.Describe(), title, MessageBoxButtons.OK,
+                result.Success ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"The refresh failed and no prices were changed:\n{ex.Message}", title);
         }
     }
 

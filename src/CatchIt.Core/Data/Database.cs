@@ -43,6 +43,7 @@ public class Database
             cmd.CommandText = Schema;
             cmd.ExecuteNonQuery();
         }
+        AdminSchema.Ensure(conn);
 
         // The price extremes table and the product search index (also added to existing databases).
         SearchAndPricingSchema.Ensure(conn);
@@ -82,7 +83,8 @@ public class Database
             Email TEXT NOT NULL UNIQUE COLLATE NOCASE,
             PasswordHash TEXT NOT NULL,
             IsConfirmed INTEGER NOT NULL DEFAULT 0,
-            ResetToken TEXT NULL
+            ResetToken TEXT NULL,
+            IsAdmin INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS Marketplaces (

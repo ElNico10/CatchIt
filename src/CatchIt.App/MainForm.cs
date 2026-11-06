@@ -1,4 +1,5 @@
 using CatchIt.Core.Auth;
+using CatchIt.Core.Pricing;
 using CatchIt.Core.Search;
 
 namespace CatchIt.App;
@@ -24,6 +25,7 @@ public partial class MainForm : Form
     private readonly ProductDetailService _productDetails;
     private readonly WatchlistService _watchlist;
     private readonly DashboardService _dashboard;
+    private readonly PriceRefreshService _priceRefresh;
 
     /// <summary>
     /// True when the form closed because the user logged out (or chose to log in from
@@ -40,10 +42,12 @@ public partial class MainForm : Form
     /// <param name="productDetails">Handed to the search screen so it can open a listing's detail window.</param>
     /// <param name="watchlist">Handed to the watchlist and search screens.</param>
     /// <param name="dashboard">Handed to the dashboard screen.</param>
+    /// <param name="priceRefresh">Runs the admin-only price refresh.</param>
     public MainForm(UserService users, Session session, ConfirmationService confirmation, ProfileService profile,
         ListingSearchService listingSearch, ProductDetailService productDetails, WatchlistService watchlist,
-        DashboardService dashboard)
+        DashboardService dashboard, PriceRefreshService priceRefresh)
     {
+        _priceRefresh = priceRefresh;
         _listingSearch = listingSearch;
         _productDetails = productDetails;
         _watchlist = watchlist;
@@ -81,6 +85,58 @@ public partial class MainForm : Form
 
         // Unconfirmed accounts see a banner but can keep using the app.
         pnlBanner.Visible = _session.NeedsConfirmation;
+
+        // Admin-only tools are hidden from everyone else.
+        btnRefreshPrices.Visible = _session.IsAdmin;
+    }
+
+    /// <summary>
+    /// Admin button: asks for confirmation, then refreshes every listing's simulated price on a
+    /// background thread so the window stays responsive on the large imported catalog.
+    /// </summary>
+    private async void btnRefreshPrices_Click(object? sender, EventArgs e)
+    {
+        // The service checks too; asking here first avoids the confirmation prompt for non-admins.
+        var access = Access.Check(_session, Feature.PriceRefresh);
+        if (!access.Allowed)
+        {
+            MessageBox.Show(this, access.Reason, "Refresh prices", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        var last = _priceRefresh.LastRefresh();
+        var lastText = last == null
+            ? "Prices have not been refreshed yet."
+            : $"Last refresh: {last.RefreshedAt.ToLocalTime():g} ({last.ListingsUpdated:N0} listings).";
+        var answer = MessageBox.Show(this,
+            $"{lastText}\n\nRefresh every listing's price now? Prices are SIMULATED and move by up to " +
+            $"{PriceRefreshService.MaxChangePercent}% each refresh. On the full catalog this can take a while.",
+            "Refresh prices", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (answer != DialogResult.Yes)
+            return;
+
+        var originalText = btnRefreshPrices.Text;
+        btnRefreshPrices.Enabled = false;
+        btnRefreshPrices.Text = "Refreshing prices...";
+        UseWaitCursor = true;
+        try
+        {
+            var result = await Task.Run(() => _priceRefresh.Refresh());
+            MessageBox.Show(this, result.Describe(), "Refresh prices", MessageBoxButtons.OK,
+                result.Success ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+        }
+        catch (Exception ex)
+        {
+            // The refresh runs in one transaction, so a failure leaves every price as it was.
+            MessageBox.Show(this, $"The refresh failed and no prices were changed:\n{ex.Message}", "Refresh prices",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            UseWaitCursor = false;
+            btnRefreshPrices.Text = originalText;
+            btnRefreshPrices.Enabled = true;
+        }
     }
 
     /// <summary>
