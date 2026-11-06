@@ -1,6 +1,15 @@
+using System.Diagnostics;
 using Microsoft.Data.Sqlite;
 
 namespace CatchIt.Core.Data;
+
+/// <summary>What a seed run reports (issue #28, "Validate seed-script execution time").</summary>
+/// <param name="Elapsed">How long the whole run took, including creating the tables.</param>
+public record SeedResult(TimeSpan Elapsed)
+{
+    /// <summary>True when the run finished within <see cref="Seeder.TimeLimit"/>.</summary>
+    public bool WithinLimit => Elapsed <= Seeder.TimeLimit;
+}
 
 /// <summary>
 /// Populates the database with simulated demo data. Safe to run repeatedly:
@@ -10,6 +19,12 @@ namespace CatchIt.Core.Data;
 public class Seeder
 {
     public const int BcryptCost = 10;
+
+    /// <summary>
+    /// The longest a seed run is allowed to take: under five minutes (issue #28). The tests and the
+    /// <c>--seed</c> command both check against this one value, so change it here if the requirement changes.
+    /// </summary>
+    public static readonly TimeSpan TimeLimit = TimeSpan.FromMinutes(5);
     private const int HistoryDays = 400;
 
     private readonly Database _db;
@@ -59,13 +74,17 @@ public class Seeder
         ("Orbit Bluetooth Speaker", "ValueTech Bluetooth Speaker"),
     };
 
-    public void Run()
+    /// <summary>Creates the tables if needed and adds the demo data. Safe to run repeatedly.</summary>
+    /// <returns>How long the run took, and whether that is within <see cref="TimeLimit"/>.</returns>
+    public SeedResult Run()
     {
+        var watch = Stopwatch.StartNew();
         _db.Initialize();
         using var conn = _db.Open();
         using var tx = conn.BeginTransaction();
 
         SeedDemoUser(conn, tx);
+        SeedAdminUser(conn, tx);
         foreach (var m in Marketplaces)
             Exec(conn, tx, "INSERT OR IGNORE INTO Marketplaces (Name) VALUES ($n)", ("$n", m));
         foreach (var (n, t) in Brands)
@@ -89,6 +108,7 @@ public class Seeder
 
         SeedListingsAndHistory(conn, tx);
         tx.Commit();
+        return new SeedResult(watch.Elapsed);
     }
 
     private static void SeedDemoUser(SqliteConnection conn, SqliteTransaction tx)
@@ -99,6 +119,22 @@ public class Seeder
             "INSERT OR IGNORE INTO Users (Name, Email, PasswordHash, IsConfirmed) " +
             "VALUES ('Demo User', 'demo@catchit.test', $h, 1)",
             ("$h", hash));
+    }
+
+    /// <summary>The demo administrator's login (simulated data only).</summary>
+    public const string AdminEmail = "admin@catchit.test";
+
+    /// <summary>The demo administrator's password.</summary>
+    public const string AdminPassword = "Admin1234!";
+
+    private static void SeedAdminUser(SqliteConnection conn, SqliteTransaction tx)
+    {
+        // Demo administrator, for admin-only features such as the price refresh (issue #19).
+        var hash = BCrypt.Net.BCrypt.HashPassword(AdminPassword, BcryptCost);
+        Exec(conn, tx,
+            "INSERT OR IGNORE INTO Users (Name, Email, PasswordHash, IsConfirmed, IsAdmin) " +
+            "VALUES ('Demo Admin', $e, $h, 1, 1)",
+            ("$e", AdminEmail), ("$h", hash));
     }
 
     private void SeedListingsAndHistory(SqliteConnection conn, SqliteTransaction tx)
