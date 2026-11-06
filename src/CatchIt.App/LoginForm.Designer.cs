@@ -25,6 +25,7 @@ partial class LoginForm
         txtPassword = new TextBox();
         lblError = new Label();
         btnLogin = new Button();
+        lnkForgot = new LinkLabel();
         lnkRegister = new LinkLabel();
         btnGuest = new Button();
         SuspendLayout();
@@ -98,12 +99,23 @@ partial class LoginForm
         btnLogin.UseVisualStyleBackColor = true;
         btnLogin.Click += btnLogin_Click;
         //
+        // lnkForgot
+        //
+        lnkForgot.Location = new Point(32, 258);
+        lnkForgot.Name = "lnkForgot";
+        lnkForgot.Size = new Size(316, 20);
+        lnkForgot.TabIndex = 3;
+        lnkForgot.TabStop = true;
+        lnkForgot.Text = "Forgot password?";
+        lnkForgot.TextAlign = ContentAlignment.MiddleCenter;
+        lnkForgot.LinkClicked += lnkForgot_LinkClicked;
+        //
         // lnkRegister
         //
-        lnkRegister.Location = new Point(32, 258);
+        lnkRegister.Location = new Point(32, 283);
         lnkRegister.Name = "lnkRegister";
         lnkRegister.Size = new Size(316, 20);
-        lnkRegister.TabIndex = 3;
+        lnkRegister.TabIndex = 4;
         lnkRegister.TabStop = true;
         lnkRegister.Text = "New here? Create an account";
         lnkRegister.TextAlign = ContentAlignment.MiddleCenter;
@@ -111,10 +123,10 @@ partial class LoginForm
         //
         // btnGuest
         //
-        btnGuest.Location = new Point(32, 288);
+        btnGuest.Location = new Point(32, 313);
         btnGuest.Name = "btnGuest";
         btnGuest.Size = new Size(316, 32);
-        btnGuest.TabIndex = 4;
+        btnGuest.TabIndex = 5;
         btnGuest.Text = "Continue as guest";
         btnGuest.UseVisualStyleBackColor = true;
         btnGuest.Click += btnGuest_Click;
@@ -124,7 +136,7 @@ partial class LoginForm
         AcceptButton = btnLogin;
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(380, 345);
+        ClientSize = new Size(380, 370);
         Controls.Add(lblTitle);
         Controls.Add(lblSubtitle);
         Controls.Add(lblEmail);
@@ -133,6 +145,7 @@ partial class LoginForm
         Controls.Add(txtPassword);
         Controls.Add(lblError);
         Controls.Add(btnLogin);
+        Controls.Add(lnkForgot);
         Controls.Add(lnkRegister);
         Controls.Add(btnGuest);
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -155,6 +168,7 @@ partial class LoginForm
     private TextBox txtPassword;
     private Label lblError;
     private Button btnLogin;
+    private LinkLabel lnkForgot;
     private LinkLabel lnkRegister;
     private Button btnGuest;
 }

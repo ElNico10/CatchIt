@@ -49,6 +49,7 @@ static class Program
         var session = new Session();
         var users = new UserService(db, session);
         var confirmation = new ConfirmationService(db, session, DeliverSimulatedEmail);
+        var passwordReset = new PasswordResetService(db, DeliverSimulatedResetEmail);
         var profile = new ProfileService(db, session);
         var listingSearch = new ListingSearchService(db);
         var productDetails = new ProductDetailService(db);
@@ -58,7 +59,7 @@ static class Program
         // comes back to the login form; closing either window exits the app.
         while (true)
         {
-            using var login = new LoginForm(users, session);
+            using var login = new LoginForm(users, session, passwordReset);
             if (login.ShowDialog() != DialogResult.OK)
                 break;
 
@@ -115,6 +116,19 @@ static class Program
     private static void DeliverSimulatedEmail(string email, string code)
     {
         using var message = new SimulatedEmailForm(email, code);
+        message.ShowDialog();
+    }
+
+    /// <summary>
+    /// The password-reset "mechanism": the same free, simulated email as confirmation, with the
+    /// reset wording. Passed to <see cref="PasswordResetService"/> as its delivery hook.
+    /// </summary>
+    /// <param name="email">Address the pretend email is "sent" to.</param>
+    /// <param name="code">The reset code to show the user.</param>
+    private static void DeliverSimulatedResetEmail(string email, string code)
+    {
+        using var message = new SimulatedEmailForm(email, code,
+            "Reset your CatchIt password", "Your password reset code is:");
         message.ShowDialog();
     }
 }

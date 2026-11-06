@@ -10,14 +10,17 @@ public partial class LoginForm : Form
 {
     private readonly UserService _users;
     private readonly Session _session;
+    private readonly PasswordResetService _reset;
 
     /// <summary>Creates the login form.</summary>
     /// <param name="users">Checks the entered credentials.</param>
     /// <param name="session">Switched into guest mode when the user skips signing in.</param>
-    public LoginForm(UserService users, Session session)
+    /// <param name="reset">Handles the "Forgot password?" flow.</param>
+    public LoginForm(UserService users, Session session, PasswordResetService reset)
     {
         _users = users;
         _session = session;
+        _reset = reset;
         InitializeComponent();
     }
 
@@ -58,6 +61,22 @@ public partial class LoginForm : Form
         {
             // Account created: bring the email over so the user only has to type the password.
             txtEmail.Text = register.RegisteredEmail;
+            txtPassword.Clear();
+            lblError.Text = string.Empty;
+            txtPassword.Focus();
+        }
+    }
+
+    /// <summary>
+    /// Opens the forgot-password form, pre-filled with whatever email is typed here. After a
+    /// successful reset the user comes back here with that email filled in, ready to log in.
+    /// </summary>
+    private void lnkForgot_LinkClicked(object? sender, LinkLabelLinkClickedEventArgs e)
+    {
+        using var forgot = new ForgotPasswordForm(_reset, txtEmail.Text);
+        if (forgot.ShowDialog(this) == DialogResult.OK)
+        {
+            txtEmail.Text = forgot.ResetEmail;
             txtPassword.Clear();
             lblError.Text = string.Empty;
             txtPassword.Focus();
