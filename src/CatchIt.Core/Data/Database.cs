@@ -46,6 +46,33 @@ public class Database
 
         // The price extremes table and the product search index (also added to existing databases).
         SearchAndPricingSchema.Ensure(conn);
+
+        // Password-reset columns on Users (also added to databases created before they existed).
+        EnsureColumn(conn, "Users", "ResetTokenExpires", "TEXT NULL");
+        EnsureColumn(conn, "Users", "ResetAttempts", "INTEGER NOT NULL DEFAULT 0");
+    }
+
+    /// <summary>
+    /// Adds a column to an existing table if it is not there yet. SQLite has no
+    /// "ADD COLUMN IF NOT EXISTS", so the table's current columns are checked first.
+    /// </summary>
+    /// <param name="conn">An open connection.</param>
+    /// <param name="table">Table name (a fixed name from this class, never user input).</param>
+    /// <param name="column">Column to add.</param>
+    /// <param name="definition">Type and constraints, e.g. <c>TEXT NULL</c>.</param>
+    private static void EnsureColumn(SqliteConnection conn, string table, string column, string definition)
+    {
+        using (var check = conn.CreateCommand())
+        {
+            check.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = $c";
+            check.Parameters.AddWithValue("$c", column);
+            if (Convert.ToInt64(check.ExecuteScalar()) > 0)
+                return;
+        }
+
+        using var add = conn.CreateCommand();
+        add.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition}";
+        add.ExecuteNonQuery();
     }
 
     private const string Schema = """

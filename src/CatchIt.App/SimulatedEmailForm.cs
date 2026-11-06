@@ -16,12 +16,16 @@ public partial class SimulatedEmailForm : Form
 
     /// <summary>Creates the simulated email window.</summary>
     /// <param name="email">Address shown on the "To:" line.</param>
-    /// <param name="code">The confirmation code to display and copy.</param>
-    public SimulatedEmailForm(string email, string code)
+    /// <param name="code">The code to display and copy.</param>
+    /// <param name="subject">Subject line. Defaults to the account-confirmation email.</param>
+    /// <param name="intro">Text above the code. Defaults to the account-confirmation wording.</param>
+    public SimulatedEmailForm(string email, string code,
+        string subject = "Confirm your CatchIt account", string intro = "Your confirmation code is:")
     {
         _code = code;
         InitializeComponent();
-        lblMeta.Text = $"To: {email}\nSubject: Confirm your CatchIt account";
+        lblMeta.Text = $"To: {email}\nSubject: {subject}";
+        lblIntro.Text = intro;
         txtCode.Text = code;
 
         // Pre-select the code so it is already highlighted, ready for Ctrl+C.
