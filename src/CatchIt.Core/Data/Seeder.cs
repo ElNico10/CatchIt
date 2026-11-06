@@ -66,6 +66,7 @@ public class Seeder
         using var tx = conn.BeginTransaction();
 
         SeedDemoUser(conn, tx);
+        SeedAdminUser(conn, tx);
         foreach (var m in Marketplaces)
             Exec(conn, tx, "INSERT OR IGNORE INTO Marketplaces (Name) VALUES ($n)", ("$n", m));
         foreach (var (n, t) in Brands)
@@ -99,6 +100,22 @@ public class Seeder
             "INSERT OR IGNORE INTO Users (Name, Email, PasswordHash, IsConfirmed) " +
             "VALUES ('Demo User', 'demo@catchit.test', $h, 1)",
             ("$h", hash));
+    }
+
+    /// <summary>The demo administrator's login (simulated data only).</summary>
+    public const string AdminEmail = "admin@catchit.test";
+
+    /// <summary>The demo administrator's password.</summary>
+    public const string AdminPassword = "Admin1234!";
+
+    private static void SeedAdminUser(SqliteConnection conn, SqliteTransaction tx)
+    {
+        // Demo administrator, for admin-only features such as the price refresh (issue #19).
+        var hash = BCrypt.Net.BCrypt.HashPassword(AdminPassword, BcryptCost);
+        Exec(conn, tx,
+            "INSERT OR IGNORE INTO Users (Name, Email, PasswordHash, IsConfirmed, IsAdmin) " +
+            "VALUES ('Demo Admin', $e, $h, 1, 1)",
+            ("$e", AdminEmail), ("$h", hash));
     }
 
     private void SeedListingsAndHistory(SqliteConnection conn, SqliteTransaction tx)

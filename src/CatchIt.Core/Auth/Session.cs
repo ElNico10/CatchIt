@@ -23,6 +23,9 @@ public class Session
     /// <summary>True for a logged-in user whose account is not confirmed yet (the UI shows a banner).</summary>
     public bool NeedsConfirmation => CurrentUser is { IsConfirmed: false };
 
+    /// <summary>True when the logged-in user is an administrator.</summary>
+    public bool IsAdmin => CurrentUser is { IsAdmin: true };
+
     /// <summary>True once the user has either logged in or chosen to continue as a guest.</summary>
     public bool IsActive => IsLoggedIn || IsGuest;
 

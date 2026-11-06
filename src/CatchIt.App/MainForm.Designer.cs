@@ -30,6 +30,7 @@ partial class MainForm
         btnDashboard = new Button();
         btnProfile = new Button();
         lblGuestNote = new Label();
+        btnRefreshPrices = new Button();
         pnlTop.SuspendLayout();
         pnlBanner.SuspendLayout();
         pnlContent.SuspendLayout();
@@ -107,6 +108,7 @@ partial class MainForm
         pnlContent.Controls.Add(btnDashboard);
         pnlContent.Controls.Add(btnProfile);
         pnlContent.Controls.Add(lblGuestNote);
+        pnlContent.Controls.Add(btnRefreshPrices);
         pnlContent.Dock = DockStyle.Fill;
         pnlContent.Location = new Point(0, 48);
         pnlContent.Name = "pnlContent";
@@ -176,6 +178,18 @@ partial class MainForm
         lblGuestNote.TabIndex = 6;
         lblGuestNote.Text = "You are browsing as a guest. The watchlist, dashboard and profile need an account because they save your data.";
         //
+        // btnRefreshPrices
+        //
+        // Shares the guest note's spot: only administrators see it, and they are never guests.
+        btnRefreshPrices.Location = new Point(32, 234);
+        btnRefreshPrices.Name = "btnRefreshPrices";
+        btnRefreshPrices.Size = new Size(576, 36);
+        btnRefreshPrices.TabIndex = 4;
+        btnRefreshPrices.Text = "Refresh prices (admin)";
+        btnRefreshPrices.UseVisualStyleBackColor = true;
+        btnRefreshPrices.Visible = false;
+        btnRefreshPrices.Click += btnRefreshPrices_Click;
+        //
         // MainForm
         //
         AutoScaleDimensions = new SizeF(7F, 15F);
@@ -211,4 +225,5 @@ partial class MainForm
     private Button btnDashboard;
     private Button btnProfile;
     private Label lblGuestNote;
+    private Button btnRefreshPrices;
 }

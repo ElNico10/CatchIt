@@ -16,6 +16,9 @@ public enum Feature
     TargetPrice,
     Dashboard,
     Profile,
+
+    // Admin features: only administrators can use them.
+    PriceRefresh,
 }
 
 public record AccessResult(bool Allowed, string? Reason)
@@ -32,6 +35,7 @@ public static class Access
 {
     public const string LoginOrGuestMessage = "Please log in or continue as a guest";
     public const string LoginRequiredMessage = "Please log in to use this feature. Guests can't save data.";
+    public const string AdminOnlyMessage = "Only administrators can use this feature.";
 
     private static readonly HashSet<Feature> AccountOnly = new()
     {
@@ -41,12 +45,22 @@ public static class Access
         Feature.Profile,
     };
 
-    public static bool RequiresAccount(Feature feature) => AccountOnly.Contains(feature);
+    private static readonly HashSet<Feature> AdminOnly = new()
+    {
+        Feature.PriceRefresh,
+    };
+
+    public static bool RequiresAccount(Feature feature) => AccountOnly.Contains(feature) || AdminOnly.Contains(feature);
+
+    public static bool RequiresAdmin(Feature feature) => AdminOnly.Contains(feature);
 
     public static AccessResult Check(Session session, Feature feature)
     {
         if (!session.IsActive)
             return AccessResult.No(LoginOrGuestMessage);
+
+        if (RequiresAdmin(feature) && !session.IsAdmin)
+            return AccessResult.No(AdminOnlyMessage);
 
         if (RequiresAccount(feature) && !session.IsLoggedIn)
             return AccessResult.No(LoginRequiredMessage);
