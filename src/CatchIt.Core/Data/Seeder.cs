@@ -1,6 +1,15 @@
+using System.Diagnostics;
 using Microsoft.Data.Sqlite;
 
 namespace CatchIt.Core.Data;
+
+/// <summary>What a seed run reports (issue #28, "Validate seed-script execution time").</summary>
+/// <param name="Elapsed">How long the whole run took, including creating the tables.</param>
+public record SeedResult(TimeSpan Elapsed)
+{
+    /// <summary>True when the run finished within <see cref="Seeder.TimeLimit"/>.</summary>
+    public bool WithinLimit => Elapsed <= Seeder.TimeLimit;
+}
 
 /// <summary>
 /// Populates the database with simulated demo data. Safe to run repeatedly:
@@ -10,6 +19,12 @@ namespace CatchIt.Core.Data;
 public class Seeder
 {
     public const int BcryptCost = 10;
+
+    /// <summary>
+    /// The longest a seed run is allowed to take: under five minutes (issue #28). The tests and the
+    /// <c>--seed</c> command both check against this one value, so change it here if the requirement changes.
+    /// </summary>
+    public static readonly TimeSpan TimeLimit = TimeSpan.FromMinutes(5);
     private const int HistoryDays = 400;
 
     private readonly Database _db;
@@ -59,8 +74,11 @@ public class Seeder
         ("Orbit Bluetooth Speaker", "ValueTech Bluetooth Speaker"),
     };
 
-    public void Run()
+    /// <summary>Creates the tables if needed and adds the demo data. Safe to run repeatedly.</summary>
+    /// <returns>How long the run took, and whether that is within <see cref="TimeLimit"/>.</returns>
+    public SeedResult Run()
     {
+        var watch = Stopwatch.StartNew();
         _db.Initialize();
         using var conn = _db.Open();
         using var tx = conn.BeginTransaction();
@@ -89,6 +107,7 @@ public class Seeder
 
         SeedListingsAndHistory(conn, tx);
         tx.Commit();
+        return new SeedResult(watch.Elapsed);
     }
 
     private static void SeedDemoUser(SqliteConnection conn, SqliteTransaction tx)
