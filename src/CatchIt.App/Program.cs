@@ -24,11 +24,15 @@ static class Program
         // without showing any of the normal windows.
         if (args.Contains("--seed"))
         {
-            var watch = System.Diagnostics.Stopwatch.StartNew();
-            new Seeder(db).Run();
+            var seed = new Seeder(db).Run();
+            var verdict = seed.WithinLimit
+                ? $"Within the {Seeder.TimeLimit.TotalMinutes:F0}-minute limit."
+                : $"WARNING: slower than the {Seeder.TimeLimit.TotalMinutes:F0}-minute limit.";
             MessageBox.Show(
-                $"Database seeded with simulated demo data in {watch.Elapsed.TotalSeconds:F1}s.\n{Database.DefaultPath}",
-                "CatchIt seed");
+                $"Database seeded with simulated demo data in {seed.Elapsed.TotalSeconds:F1}s.\n{verdict}\n{Database.DefaultPath}",
+                "CatchIt seed",
+                MessageBoxButtons.OK,
+                seed.WithinLimit ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
             return;
         }
 
