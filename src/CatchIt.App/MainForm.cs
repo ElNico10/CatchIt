@@ -5,8 +5,8 @@ namespace CatchIt.App;
 
 /// <summary>
 /// Main window hub. Each feature button asks Access.Check whether the current session may
-/// use it, then opens that feature's screen in its own window. Search, watchlist and
-/// profile work; the dashboard is still a placeholder.
+/// use it, then opens that feature's screen in its own window. Search, watchlist, dashboard
+/// and profile all work.
 /// </summary>
 /// <remarks>
 /// The window has three stacked panels: the top bar (who is logged in and the Logout / Log in
@@ -23,6 +23,7 @@ public partial class MainForm : Form
     private readonly ListingSearchService _listingSearch;
     private readonly ProductDetailService _productDetails;
     private readonly WatchlistService _watchlist;
+    private readonly DashboardService _dashboard;
 
     /// <summary>
     /// True when the form closed because the user logged out (or chose to log in from
@@ -38,12 +39,15 @@ public partial class MainForm : Form
     /// <param name="listingSearch">Handed to the search screen so it can find products and their prices.</param>
     /// <param name="productDetails">Handed to the search screen so it can open a listing's detail window.</param>
     /// <param name="watchlist">Handed to the watchlist and search screens.</param>
+    /// <param name="dashboard">Handed to the dashboard screen.</param>
     public MainForm(UserService users, Session session, ConfirmationService confirmation, ProfileService profile,
-        ListingSearchService listingSearch, ProductDetailService productDetails, WatchlistService watchlist)
+        ListingSearchService listingSearch, ProductDetailService productDetails, WatchlistService watchlist,
+        DashboardService dashboard)
     {
         _listingSearch = listingSearch;
         _productDetails = productDetails;
         _watchlist = watchlist;
+        _dashboard = dashboard;
         _users = users;
         _session = session;
         _confirmation = confirmation;
@@ -121,7 +125,7 @@ public partial class MainForm : Form
     private void btnWatchlist_Click(object? sender, EventArgs e) =>
         OpenFeature(Feature.Watchlist, "Watchlist", () => new WatchlistForm(_watchlist, _productDetails));
     private void btnDashboard_Click(object? sender, EventArgs e) =>
-        OpenFeature(Feature.Dashboard, "Dashboard", () => new DashboardForm());
+        OpenFeature(Feature.Dashboard, "Dashboard", () => new DashboardForm(_dashboard, _productDetails, _watchlist));
     private void btnProfile_Click(object? sender, EventArgs e) =>
         OpenFeature(Feature.Profile, "Profile", () => new ProfileForm(_profile, _users, _session));
 
