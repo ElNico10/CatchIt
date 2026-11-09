@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, web-app]
+  push:
+    branches: [main, web-app]
+
+jobs:
+  # The tests run in Docker on Linux, the same image anyone can run locally.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --target test -t catchit-tests .
+      - run: docker run --rm catchit-tests
+
+  # The WinForms app only builds on Windows.
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build CatchIt.slnx -c Release
