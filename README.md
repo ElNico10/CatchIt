@@ -26,6 +26,8 @@ It is a Windows Forms app written in C# on .NET 10, with a local SQLite database
 | **Alternatives** | Up to three suggestions on the detail window: the cheapest option (cheaper and a lower brand tier), a better-reviewed one, and one that may drop soon (its biggest seasonal price drop last year, named by sale event). A product that qualifies for two slots is shown once with both reasons. |
 | **Accounts** | Register with an email and password, log in and out, and change your name, email and password on the profile screen. Passwords need at least 8 characters with a letter and a number and are stored only as BCrypt hashes. |
 | **Account confirmation** | New accounts show a banner and can still use the app. Confirm with a 6-digit code (valid for 15 minutes). The code is delivered by a **simulated email**: a window that appears on screen, nothing is sent. |
+| **Password reset** | "Forgot password?" on the login screen asks for your email and sends a 6-digit code by **simulated email**. Enter the code and a new password to reset it. The code expires after 15 minutes and stops working after 5 wrong tries. |
+| **Admin price refresh** | Administrators see a *Refresh prices (admin)* button on the main window. It moves every listing's **simulated** price by up to 5% and logs the refresh. Other users and guests cannot use it. |
 | **Guest mode** | Search, prices, history, sale flags, filters and alternatives work without an account. The watchlist, dashboard and profile need one, because they save data. |
 | **Watchlist** | Add a product from its detail window, remove it, and set an optional target price. Duplicates are not allowed and a target must be above $0. |
 | **Dashboard** | Opens with a *Below Target Price* list of watched products whose lowest current price has reached the target, and a *Not at target yet* list sorted closest first. Each row shows the gap to the target and how the price compares with its 90-day average. There are no emails or push notifications. |
@@ -56,11 +58,12 @@ There is no console output. A message box appears and the program exits:
 
 ```
 Database seeded with simulated demo data in X.Xs.
+Within the 5-minute limit.
 C:\Users\<you>\AppData\Local\CatchIt\catchit.db
 ```
 
-(The seconds shown depend on your machine.) Seeding is safe to repeat; it does not create duplicates. It creates a demo
-account, a small catalog of headphones, monitors, keyboards and speakers sold on four simulated marketplaces
+(The seconds shown depend on your machine. The seed is expected to finish within 5 minutes and warns if it does not.)
+Seeding is safe to repeat; it does not create duplicates. It creates a demo account, an admin account, a small catalog of headphones, monitors, keyboards and speakers sold on four simulated marketplaces
 (ShopMart, BargainBay, MegaStore, QuickBuy), about 400 days of simulated price history for each listing, and
 alternative-product links.
 
@@ -79,6 +82,20 @@ register a new account, or log in with the demo account:
 
 The demo account is already confirmed. A newly registered account is not; its confirmation code appears in the
 simulated email window.
+
+To try the admin price refresh, log in with the seeded administrator account instead:
+
+| Email | Password |
+| --- | --- |
+| `admin@catchit.test` | `Admin1234!` |
+
+The refresh can also be run without opening the app:
+
+```bash
+src/CatchIt.App/bin/Debug/net10.0-windows/CatchIt.App.exe --refresh-prices admin@catchit.test Admin1234!
+```
+
+A message box reports how many listings were updated. A non-admin account is refused and nothing changes.
 
 To start over, close the app, delete `%LocalAppData%\CatchIt\catchit.db`, and seed again.
 
@@ -113,7 +130,7 @@ closes.
 dotnet test CatchIt.slnx
 ```
 
-The suite (about 420 tests, roughly 40 seconds) covers accounts and access rules, confirmation, profile and
+The suite (about 460 tests, roughly 40 seconds) covers accounts and access rules, confirmation, profile, password reset and
 password changes, search accuracy checked against an independent brute-force oracle, filters, price history,
 sale detection, chart math, alternatives, the watchlist, the dashboard, and the bulk importers.
 
@@ -128,8 +145,5 @@ github-issues/      The user stories, one file each
 
 ## Not included
 
-- **Password reset** (user story #4) is not built yet. Signed-in users can change their password from the
-  profile screen.
-- **Admin price refresh** (requirement #19) is not built yet. Prices change only when the data is seeded or imported.
 - Requirements aimed at a hosted web app (HTTPS, many concurrent users, free-host page-load times, automated
   deployment) do not apply to a local desktop app and were not built.
