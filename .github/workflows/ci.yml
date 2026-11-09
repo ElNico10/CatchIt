@@ -15,6 +15,16 @@ jobs:
       - run: docker build --target test -t catchit-tests .
       - run: docker run --rm catchit-tests
 
+  # Selenium drives headless Chrome (preinstalled on ubuntu-latest) against the real web server.
+  web-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test tests/CatchIt.WebTests
+
   # The WinForms app only builds on Windows.
   build-windows:
     runs-on: windows-latest
