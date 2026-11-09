@@ -1,0 +1,38 @@
+@page
+@model CatchIt.Web.Pages.IndexModel
+@{
+    ViewData["Title"] = "Search";
+}
+<h1>Find the best price</h1>
+<form method="get">
+    <label for="q">Product, brand or keyword</label>
+    <input id="q" name="q" value="@Model.Q" autofocus />
+    <button type="submit" id="search">Search</button>
+</form>
+
+@if (Model.Result is { } found)
+{
+    if (!found.TextMatchedAnyProduct)
+    {
+        <p id="status">No products found</p>
+    }
+    else
+    {
+        <p id="status">Showing @found.Hits.Count of @found.TotalListings listings, cheapest first.</p>
+        <table id="results">
+            <thead><tr><th>Product</th><th>Brand</th><th>Marketplace</th><th>Seller rating</th><th>Price</th></tr></thead>
+            <tbody>
+            @foreach (var hit in found.Hits)
+            {
+                <tr>
+                    <td>@hit.ProductName @if (hit.OnSale) { <span class="sale">On Sale</span> }</td>
+                    <td>@hit.BrandName</td>
+                    <td>@hit.MarketplaceName</td>
+                    <td>@hit.SellerRating.ToString("0.0")</td>
+                    <td>@(hit.CurrentPrice is { } p ? p.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("en-US")) : "No price")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+}

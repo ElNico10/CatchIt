@@ -2,8 +2,10 @@
   <Folder Name="/src/">
     <Project Path="src/CatchIt.App/CatchIt.App.csproj" />
     <Project Path="src/CatchIt.Core/CatchIt.Core.csproj" />
+    <Project Path="src/CatchIt.Web/CatchIt.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CatchIt.Tests/CatchIt.Tests.csproj" />
+    <Project Path="tests/CatchIt.WebTests/CatchIt.WebTests.csproj" />
   </Folder>
 </Solution>

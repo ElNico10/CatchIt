@@ -1,0 +1,39 @@
+@using CatchIt.Core
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] - CatchIt</title>
+    <style>
+        body { font-family: "Segoe UI", sans-serif; max-width: 960px; margin: 0 auto; padding: 0 16px; color: #1b1b1b; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #ddd; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; }
+        .sale { color: #1a7f37; font-weight: 600; }
+        .error { color: #b3261e; }
+        .note { color: #555; font-size: 0.9em; margin-top: 24px; }
+        input { padding: 6px; }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="/"><strong>CatchIt</strong></a>
+        <nav id="account">
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <span id="who">@User.Identity.Name</span>
+                <form method="post" asp-page="/Logout" style="display:inline">
+                    <button type="submit" id="logout">Log out</button>
+                </form>
+            }
+            else
+            {
+                <a id="login-link" href="/Login">Log in</a>
+            }
+        </nav>
+    </header>
+    <main>@RenderBody()</main>
+    <p class="note" id="disclaimer">@Disclaimer.SimulatedData</p>
+</body>
+</html>
