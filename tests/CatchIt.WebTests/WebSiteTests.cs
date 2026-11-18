@@ -65,6 +65,18 @@ public class WebSiteTests(WebSite site) : IClassFixture<WebSite>
     }
 
     [Fact]
+    public async Task TheHealthCheck_ReportsTheDatabaseIsReachable()
+    {
+        using var http = new HttpClient();
+        var response = await http.GetAsync(site.Url + "/health");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("\"status\":\"ok\"", body);
+        Assert.Contains("\"products\":", body);
+    }
+
+    [Fact]
     public void AGuest_CanSearch_AndSeesTheSimulatedDataNotice()
     {
         using var browser = OpenBrowser();
