@@ -48,7 +48,29 @@ public static class WebApp
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapRazorPages();
+        app.MapGet("/health", Health);
         return app;
+    }
+
+    /// <summary>
+    /// <c>GET /health</c>: proves the app is up and can read its database (issue #26). Answers 200 with the
+    /// number of products and the running image's version, or 503 when the database has no products. Render
+    /// uses it as the service's health check, and <c>scripts/smoke-test.sh</c> uses it to wait for a new deploy.
+    /// </summary>
+    private static IResult Health(Database db)
+    {
+        long products;
+        using (var conn = db.Open())
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT COUNT(*) FROM Products";
+            products = Convert.ToInt64(cmd.ExecuteScalar());
+        }
+
+        // APP_VERSION is baked into the Docker image by the publish workflow: it is the image tag (short commit SHA).
+        var version = Environment.GetEnvironmentVariable("APP_VERSION") ?? "local";
+        var body = new { status = products > 0 ? "ok" : "empty database", version, products };
+        return products > 0 ? Results.Ok(body) : Results.Json(body, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
     /// <summary>The claims stored in the login cookie for a user.</summary>
