@@ -105,7 +105,7 @@ Open <http://localhost:8080> and log in with `demo@catchit.test` / `Demo1234!`.
 
 | Symptom | Likely cause |
 | --- | --- |
-| "Set the DOCKERHUB_USERNAME repository variable" | The variable is missing, or was added under Secrets instead of Variables. |
+| The publish run is skipped, or says "Set the DOCKERHUB_USERNAME repository variable" | The variable is missing, or was added under Secrets instead of Variables. |
 | "Log in to Docker Hub" fails | `DOCKERHUB_TOKEN` is missing or wrong, or the token is Read-only. |
 | "Push the image" says access denied | `DOCKERHUB_USERNAME` does not match the account the token belongs to. |
 | Deploy step: curl returns 400 | Render's image URL is not exactly `docker.io/<your-username>/catchit:latest`. |
