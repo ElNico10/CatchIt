@@ -1,0 +1,20 @@
+# The CatchIt web server. Start it:  docker compose up -d --build
+# The site is then at http://localhost:8080
+#
+# The image already holds a small seeded demo database in /app/data. The first start copies it into
+# the volume, so rebuilding or restarting never loses data afterwards.
+# To serve a different database (for example the big imported one), set CATCHIT_DATA to a volume
+# name or a host folder that contains catchit.db before starting.
+services:
+  web:
+    build:
+      context: .
+      target: runtime
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${CATCHIT_DATA:-catchit-data}:/app/data
+    restart: unless-stopped
+
+volumes:
+  catchit-data:
