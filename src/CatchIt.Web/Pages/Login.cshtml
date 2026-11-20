@@ -1,0 +1,17 @@
+@page
+@model CatchIt.Web.Pages.LoginModel
+@{
+    ViewData["Title"] = "Log in";
+}
+<h1>Log in</h1>
+<form method="post">
+    <p><label for="email">Email</label><br /><input id="email" name="Email" type="email" value="@Model.Email" /></p>
+    <p><label for="password">Password</label><br /><input id="password" name="Password" type="password" /></p>
+    <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+    <button type="submit" id="submit">Log in</button>
+    @if (Model.Error is { } error)
+    {
+        <p class="error" id="error" role="alert">@error</p>
+    }
+</form>
+<p><a href="/">Continue as guest</a></p>

@@ -1,0 +1,88 @@
+name: Build and publish Docker image
+
+# Every push to main builds the web app's Docker image, checks it starts, tags it, pushes it to Docker Hub,
+# and (once the Render service exists) deploys that exact tag. See docs/DEPLOYMENT.md.
+on:
+  push:
+    branches: [main]
+  # "Run workflow" button on the Actions tab, to republish and redeploy main by hand.
+  workflow_dispatch:
+
+# One publish at a time; a newer push waits for the running one instead of cancelling it mid-deploy.
+concurrency:
+  group: docker-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Skipped (not failed) until the Docker Hub variable exists, so main stays green before setup.
+    if: vars.DOCKERHUB_USERNAME != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Docker Hub account name (a repository variable, not secret) and the image repository on it.
+      DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+      IMAGE_NAME: catchit
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Work out the image name and tags
+        id: meta
+        run: |
+          if [ -z "$DOCKERHUB_USERNAME" ]; then
+            echo "::error::Set the DOCKERHUB_USERNAME repository variable (see docs/DEPLOYMENT.md)."
+            exit 1
+          fi
+          image="docker.io/${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
+          tag="${GITHUB_SHA::7}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Image: $image, tags: $tag and latest"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build the Docker image
+        run: >
+          docker build
+          --build-arg APP_VERSION=${{ steps.meta.outputs.tag }}
+          -t ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+          -t ${{ steps.meta.outputs.image }}:latest
+          .
+
+      - name: Start the image and check the app works
+        run: |
+          docker run -d --name catchit -p 8080:8080 ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+          bash scripts/smoke-test.sh http://localhost:8080 ${{ steps.meta.outputs.tag }} 3
+
+      - name: Show the container log if the check failed
+        if: failure()
+        run: docker logs catchit || true
+
+      - name: Push the image to Docker Hub
+        run: |
+          docker push ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+          docker push ${{ steps.meta.outputs.image }}:latest
+          echo "### Published ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://hub.docker.com/r/${DOCKERHUB_USERNAME}/${IMAGE_NAME}/tags" >> "$GITHUB_STEP_SUMMARY"
+
+      # Skipped (not failed) until the Render service and its deploy hook exist, so the first runs can
+      # publish the image that the Render service is then created from.
+      - name: Deploy this tag to Render
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          DEPLOY_URL: ${{ vars.DEPLOY_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ] || [ -z "$DEPLOY_URL" ]; then
+            echo "::notice::RENDER_DEPLOY_HOOK_URL or DEPLOY_URL not set yet, so the deploy was skipped."
+            exit 0
+          fi
+          curl -fsS -X POST -G "$RENDER_DEPLOY_HOOK_URL" \
+            --data-urlencode "imgURL=${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}"
+          echo
+          bash scripts/smoke-test.sh "$DEPLOY_URL" ${{ steps.meta.outputs.tag }} 20
+          echo "Live at $DEPLOY_URL running ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"

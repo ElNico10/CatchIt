@@ -1,0 +1,26 @@
+name: Deploy
+
+# Runs on the self-hosted runner on the server machine, only for pushes to web-app (merged PRs).
+# It never runs for pull_request, so code from a fork can not reach the server.
+on:
+  push:
+    branches: [web-app]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: github.repository == 'ElNico10/CatchIt'
+    runs-on: [self-hosted, catchit-server]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start the container
+        run: docker compose up -d --build
+      - name: Wait for the site to answer
+        shell: powershell
+        run: |
+          for ($i = 0; $i -lt 30; $i++) {
+            try { if ((Invoke-WebRequest http://localhost:8080/health -UseBasicParsing).StatusCode -eq 200) { exit 0 } } catch { }
+            Start-Sleep -Seconds 2
+          }
+          docker compose logs web
+          exit 1

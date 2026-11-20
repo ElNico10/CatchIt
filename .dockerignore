@@ -1,0 +1,7 @@
+**/bin/
+**/obj/
+.git/
+.vs/
+graphify-out/
+github-issues/
+*.db

@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, web-app]
+  push:
+    branches: [main, web-app]
+  # "Run workflow" button on the Actions tab.
+  workflow_dispatch:
+
+jobs:
+  # The tests run in Docker on Linux, the same image anyone can run locally.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --target test -t catchit-tests .
+      - run: docker run --rm catchit-tests
+
+  # Selenium drives headless Chrome (preinstalled on ubuntu-latest) against the real web server.
+  web-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test tests/CatchIt.WebTests
+
+  # Builds the production web image, starts it, and runs the smoke test, so a broken image is caught on the
+  # pull request before it reaches main (where docker-publish.yml pushes it to Docker Hub).
+  web-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t catchit-web .
+      - run: docker run -d --name catchit -p 8080:8080 catchit-web
+      - run: bash scripts/smoke-test.sh http://localhost:8080 "" 3
+      - if: failure()
+        run: docker logs catchit
+
+  # The WinForms app only builds on Windows.
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build CatchIt.slnx -c Release

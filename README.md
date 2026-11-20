@@ -134,16 +134,30 @@ The suite (about 460 tests, roughly 40 seconds) covers accounts and access rules
 password changes, search accuracy checked against an independent brute-force oracle, filters, price history,
 sale detection, chart math, alternatives, the watchlist, the dashboard, and the bulk importers.
 
+## Web app and deployment
+
+A web version (`src/CatchIt.Web`, ASP.NET Core Razor Pages) runs on the same `CatchIt.Core` code. So far it has
+the home page, search and login; the other screens are still desktop-only. Run it with `docker compose up -d --build`
+(site at http://localhost:8080, seeded demo data kept in a Docker volume). Once the Docker Hub and Render accounts are
+set up (`docs/DEPLOYMENT.md`), each push to `main` builds the image, publishes it to Docker Hub and deploys it to
+Render's free tier (`.github/workflows/docker-publish.yml`); until then that workflow skips itself. Setup, deploying
+and the free tier's limits are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 ## Project layout
 
 ```
-src/CatchIt.Core    Logic with no UI: Auth, Data (database, seeder, importers), Pricing, Search
-src/CatchIt.App     The Windows Forms screens and Program.cs
-tests/CatchIt.Tests xUnit tests
-github-issues/      The user stories, one file each
+src/CatchIt.Core       Logic with no UI: Auth, Data (database, seeder, importers), Pricing, Search
+src/CatchIt.App        The Windows Forms screens and Program.cs
+src/CatchIt.Web        The web app (Razor Pages)
+tests/CatchIt.Tests    xUnit tests
+tests/CatchIt.WebTests Selenium tests against the running web app
+scripts/smoke-test.sh  Post-deploy checks
+docs/DEPLOYMENT.md     How the web app is deployed
+github-issues/         The user stories, one file each
 ```
 
 ## Not included
 
-- Requirements aimed at a hosted web app (HTTPS, many concurrent users, free-host page-load times, automated
-  deployment) do not apply to a local desktop app and were not built.
+- The desktop app does not cover requirements aimed at a hosted web app (HTTPS, many concurrent users,
+  free-host page-load times). Those are being built in the web app; automated deployment is described in
+  [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
