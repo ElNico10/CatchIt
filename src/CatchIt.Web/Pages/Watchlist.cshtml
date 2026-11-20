@@ -1,0 +1,44 @@
+@page
+@model CatchIt.Web.Pages.WatchlistModel
+@{
+    ViewData["Title"] = "Watchlist";
+}
+<h1>Your watchlist</h1>
+@if (Model.Message is { } message)
+{
+    <p id="message" class="@(Model.MessageIsError ? "error" : "ok")">@message</p>
+}
+@if (Model.Items.Count == 0)
+{
+    <p id="empty">Nothing here yet. Open a product from the <a href="/">search</a> and add it to your watchlist.</p>
+}
+else
+{
+    <table id="watchlist">
+        <thead><tr><th>Product</th><th>Brand</th><th>Lowest price</th><th>Target</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var w in Model.Items)
+        {
+            <tr>
+                <td>
+                    @if (w.ListingId is { } listing) { <a href="/Product?id=@listing">@w.ProductName</a> } else { @w.ProductName }
+                    @if (w.IsBelowTarget) { <span class="sale">At or below target</span> }
+                </td>
+                <td>@w.BrandName</td>
+                <td>@Format.Money(w.CurrentPrice) @if (w.MarketplaceName != null) { <text>at @w.MarketplaceName</text> }</td>
+                <td>
+                    <form method="post" asp-page-handler="Target" asp-route-productId="@w.ProductId" class="inline">
+                        <input name="TargetPrice" inputmode="decimal" size="8" aria-label="Target price for @w.ProductName" value="@(w.TargetPrice?.ToString("0.00"))" />
+                        <button type="submit">Save</button>
+                    </form>
+                </td>
+                <td>
+                    <form method="post" asp-page-handler="Remove" asp-route-productId="@w.ProductId" class="inline">
+                        <button type="submit" class="remove">Remove</button>
+                    </form>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}

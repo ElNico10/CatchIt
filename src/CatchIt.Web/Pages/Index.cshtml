@@ -7,6 +7,22 @@
 <form method="get">
     <label for="q">Product, brand or keyword</label>
     <input id="q" name="q" value="@Model.Q" autofocus />
+    <label for="tier">Brand tier</label>
+    <select id="tier" name="tier">
+        <option value="">Any</option>
+        @foreach (var t in new[] { 1, 2, 3 })
+        {
+            <option value="@t" selected="@(Model.Tier == t)">@Format.Tier(t)</option>
+        }
+    </select>
+    <label for="minrating">Seller rating</label>
+    <select id="minrating" name="minRating">
+        <option value="">Any</option>
+        @foreach (var r in new[] { 3.0, 4.0, 4.5 })
+        {
+            <option value="@r" selected="@(Model.MinRating == r)">@r.ToString("0.0")+</option>
+        }
+    </select>
     <button type="submit" id="search">Search</button>
 </form>
 
@@ -15,6 +31,10 @@
     if (!found.TextMatchedAnyProduct)
     {
         <p id="status">No products found</p>
+    }
+    else if (found.Hits.Count == 0)
+    {
+        <p id="status">No products match your filters</p>
     }
     else
     {
@@ -25,11 +45,11 @@
             @foreach (var hit in found.Hits)
             {
                 <tr>
-                    <td>@hit.ProductName @if (hit.OnSale) { <span class="sale">On Sale</span> }</td>
+                    <td><a href="/Product?id=@hit.ListingId">@hit.ProductName</a> @if (hit.OnSale) { <span class="sale">On Sale</span> }</td>
                     <td>@hit.BrandName</td>
                     <td>@hit.MarketplaceName</td>
                     <td>@hit.SellerRating.ToString("0.0")</td>
-                    <td>@(hit.CurrentPrice is { } p ? p.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("en-US")) : "No price")</td>
+                    <td>@Format.Money(hit.CurrentPrice)</td>
                 </tr>
             }
             </tbody>

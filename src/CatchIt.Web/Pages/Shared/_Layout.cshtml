@@ -1,4 +1,8 @@
 @using CatchIt.Core
+@{
+    var signedIn = User.Identity?.IsAuthenticated == true;
+    var needsConfirmation = signedIn && User.FindFirst(WebApp.ConfirmedClaim)?.Value == "0";
+}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,32 +11,56 @@
     <title>@ViewData["Title"] - CatchIt</title>
     <style>
         body { font-family: "Segoe UI", sans-serif; max-width: 960px; margin: 0 auto; padding: 0 16px; color: #1b1b1b; }
-        header { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #ddd; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #ddd; flex-wrap: wrap; gap: 8px; }
+        nav a { margin-right: 12px; }
         table { border-collapse: collapse; width: 100%; }
         th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; }
         .sale { color: #1a7f37; font-weight: 600; }
         .error { color: #b3261e; }
+        .ok { color: #1a7f37; }
+        .banner { background: #fff4ce; border: 1px solid #e8c766; padding: 8px 12px; margin: 12px 0; }
+        .email { background: #f4f6f8; border: 1px solid #ccd; padding: 8px 12px; margin: 12px 0; }
+        .email code { font-size: 1.4em; letter-spacing: 2px; }
         .note { color: #555; font-size: 0.9em; margin-top: 24px; }
-        input { padding: 6px; }
+        input, select { padding: 6px; }
+        form.inline { display: inline; }
     </style>
 </head>
 <body>
     <header>
-        <a href="/"><strong>CatchIt</strong></a>
-        <nav id="account">
-            @if (User.Identity?.IsAuthenticated == true)
+        <nav id="nav">
+            <a href="/"><strong>CatchIt</strong></a>
+            <a href="/">Search</a>
+            @if (signedIn)
             {
-                <span id="who">@User.Identity.Name</span>
-                <form method="post" asp-page="/Logout" style="display:inline">
+                <a id="nav-watchlist" href="/Watchlist">Watchlist</a>
+                <a id="nav-dashboard" href="/Dashboard">Dashboard</a>
+                <a id="nav-profile" href="/Profile">Profile</a>
+                @if (User.IsInRole(WebApp.AdminRole))
+                {
+                    <a id="nav-admin" href="/Admin">Admin</a>
+                }
+            }
+        </nav>
+        <nav id="account">
+            @if (signedIn)
+            {
+                <span id="who">@User.Identity!.Name</span>
+                <form method="post" asp-page="/Logout" class="inline">
                     <button type="submit" id="logout">Log out</button>
                 </form>
             }
             else
             {
                 <a id="login-link" href="/Login">Log in</a>
+                <a id="register-link" href="/Register">Register</a>
             }
         </nav>
     </header>
+    @if (needsConfirmation)
+    {
+        <div class="banner" id="confirm-banner">Your account is not confirmed yet. <a href="/Confirm">Confirm it now</a>.</div>
+    }
     <main>@RenderBody()</main>
     <p class="note" id="disclaimer">@Disclaimer.SimulatedData</p>
 </body>

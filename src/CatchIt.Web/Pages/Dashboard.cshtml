@@ -1,0 +1,59 @@
+@page
+@using CatchIt.Core.Search
+@model CatchIt.Web.Pages.DashboardModel
+@{
+    ViewData["Title"] = "Dashboard";
+    var v = Model.View;
+}
+<h1>Dashboard</h1>
+@if (v.BelowTarget.Count == 0 && v.NotYetAtTarget.Count == 0)
+{
+    <p id="empty">No watched products have a target price yet. Set one on your <a href="/Watchlist">watchlist</a>.</p>
+}
+
+@functions {
+    static string Link(DashboardEntry e) => e.Item.ListingId is { } id ? "/Product?id=" + id : "";
+}
+
+@if (v.BelowTarget.Count > 0)
+{
+    <h2>Reached your target</h2>
+    <table id="below">
+        <thead><tr><th>Product</th><th>Price</th><th>Target</th><th>Under target</th><th>Vs 90-day average</th></tr></thead>
+        <tbody>
+        @foreach (var e in v.BelowTarget)
+        {
+            <tr>
+                <td>@if (Link(e) != "") { <a href="@Link(e)">@e.Item.ProductName</a> } else { @e.Item.ProductName }</td>
+                <td>@Format.Money(e.Item.CurrentPrice)</td>
+                <td>@Format.Money(e.Item.TargetPrice)</td>
+                <td>@Format.Percent(e.GapToTargetFraction)</td>
+                <td>@Format.Percent(e.VersusAverageFraction)</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+@if (v.NotYetAtTarget.Count > 0)
+{
+    <h2>Not there yet</h2>
+    <table id="waiting">
+        <thead><tr><th>Product</th><th>Price</th><th>Target</th><th>Above target</th><th>Vs 90-day average</th></tr></thead>
+        <tbody>
+        @foreach (var e in v.NotYetAtTarget)
+        {
+            <tr>
+                <td>@if (Link(e) != "") { <a href="@Link(e)">@e.Item.ProductName</a> } else { @e.Item.ProductName }</td>
+                <td>@Format.Money(e.Item.CurrentPrice)</td>
+                <td>@Format.Money(e.Item.TargetPrice)</td>
+                <td>@Format.Percent(e.GapToTargetFraction)</td>
+                <td>@Format.Percent(e.VersusAverageFraction)</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+@if (v.WithoutTarget > 0)
+{
+    <p id="no-target">@v.WithoutTarget watched @(v.WithoutTarget == 1 ? "product has" : "products have") no target price. <a href="/Watchlist">Set one</a>.</p>
+}
