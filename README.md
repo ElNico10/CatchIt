@@ -138,10 +138,12 @@ sale detection, chart math, alternatives, the watchlist, the dashboard, and the 
 
 A web version (`src/CatchIt.Web`, ASP.NET Core Razor Pages) runs on the same `CatchIt.Core` code. So far it has
 the home page, search and login; the other screens are still desktop-only. Run it with `docker compose up -d --build`
-(site at http://localhost:8080, seeded demo data kept in a Docker volume). Once the Docker Hub and Render accounts are
-set up (`docs/DEPLOYMENT.md`), each push to `main` builds the image, publishes it to Docker Hub and deploys it to
-Render's free tier (`.github/workflows/docker-publish.yml`); until then that workflow skips itself. Setup, deploying
-and the free tier's limits are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+(site at http://localhost:8080, seeded demo data kept in a Docker volume). Each push to `main` builds the image,
+publishes it to Docker Hub and deploys it to Render's free tier (`.github/workflows/docker-publish.yml`). Setup,
+deploying and the free tier's limits are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+Live demo: https://catchit-4kjh.onrender.com (free tier, so the first load after idle takes about a minute;
+the demo login is in the account table above). The image is published at https://hub.docker.com/r/elnico10/catchit.
 
 ## Project layout
 
