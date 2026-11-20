@@ -1,0 +1,26 @@
+@page
+@using CatchIt.Core.Pricing
+@model CatchIt.Web.Pages.AdminModel
+@{
+    ViewData["Title"] = "Admin";
+}
+<h1>Admin</h1>
+@if (!Model.Allowed)
+{
+    <p class="error" id="denied" role="alert">@Model.Denied</p>
+}
+else
+{
+    <p id="last">
+        @if (Model.Last is { } last) { <text>Last refresh: @last.RefreshedAt.ToString("u") (@last.ListingsUpdated.ToString("N0") listings).</text> }
+        else { <text>Prices have never been refreshed.</text> }
+    </p>
+    <p>Prices are SIMULATED and move by up to @PriceRefreshService.MaxChangePercent% each refresh. On the full catalog this can take a while.</p>
+    <form method="post" asp-page-handler="Refresh">
+        <button type="submit" id="refresh">Refresh prices now</button>
+    </form>
+    @if (Model.Result is { } result)
+    {
+        <p id="result" class="@(Model.ResultIsError ? "error" : "ok")">@result</p>
+    }
+}

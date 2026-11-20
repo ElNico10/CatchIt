@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using CatchIt.Core.Auth;
 using CatchIt.Core.Data;
+using CatchIt.Core.Pricing;
 using CatchIt.Core.Search;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
 namespace CatchIt.Web;
@@ -26,12 +28,18 @@ public static class WebApp
         db.Initialize();
         builder.Services.AddSingleton(db);
         builder.Services.AddSingleton(new ListingSearchService(db));
+        builder.Services.AddSingleton(new ProductDetailService(db));
+        builder.Services.AddSingleton(new WebCodes(db));
 
         // One Session per request, rebuilt from the login cookie. Visitors without a cookie browse as guests,
         // so nobody is forced to log in to search.
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped(sp => SessionFor(sp.GetRequiredService<IHttpContextAccessor>().HttpContext!.User));
         builder.Services.AddScoped<UserService>();
+        builder.Services.AddScoped<ProfileService>();
+        builder.Services.AddScoped<WatchlistService>();
+        builder.Services.AddScoped<DashboardService>();
+        builder.Services.AddScoped<PriceRefreshService>();
 
         builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(o =>
@@ -71,6 +79,15 @@ public static class WebApp
         var version = Environment.GetEnvironmentVariable("APP_VERSION") ?? "local";
         var body = new { status = products > 0 ? "ok" : "empty database", version, products };
         return products > 0 ? Results.Ok(body) : Results.Json(body, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    /// <summary>Writes (or rewrites) the login cookie, for example after the user confirms their account or changes their profile.</summary>
+    public static Task SignInAsync(HttpContext context, User user)
+    {
+        // The cookie only reaches the next request, so also update this request's user: the page rendered in the
+        // same response (header name, confirmation banner) then already shows the change.
+        context.User = PrincipalFor(user);
+        return context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, context.User);
     }
 
     /// <summary>The claims stored in the login cookie for a user.</summary>

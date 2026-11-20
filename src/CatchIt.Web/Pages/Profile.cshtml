@@ -1,0 +1,23 @@
+@page
+@model CatchIt.Web.Pages.ProfileModel
+@{
+    ViewData["Title"] = "Profile";
+}
+<h1>Your profile</h1>
+<form method="post" asp-page-handler="Save">
+    <p><label for="name">Name</label><br /><input id="name" name="Name" value="@Model.Name" /></p>
+    <p><label for="email">Email</label><br /><input id="email" name="Email" type="email" value="@Model.Email" /></p>
+    <button type="submit" id="save">Save</button>
+    @if (Model.ProfileMessage is { } saved) { <p class="ok" id="profile-message">@saved</p> }
+    @if (Model.ProfileError is { } profileError) { <p class="error" id="profile-error" role="alert">@profileError</p> }
+</form>
+
+<h2>Change password</h2>
+<form method="post" asp-page-handler="Password">
+    <p><label for="current">Current password</label><br /><input id="current" name="CurrentPassword" type="password" /></p>
+    <p><label for="new">New password</label><br /><input id="new" name="NewPassword" type="password" /></p>
+    <p><label for="again">New password again</label><br /><input id="again" name="ConfirmPassword" type="password" /></p>
+    <button type="submit" id="change-password">Change password</button>
+    @if (Model.PasswordMessage is { } changed) { <p class="ok" id="password-message">@changed</p> }
+    @if (Model.PasswordError is { } passwordError) { <p class="error" id="password-error" role="alert">@passwordError</p> }
+</form>

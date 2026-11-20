@@ -1,0 +1,35 @@
+@page
+@model CatchIt.Web.Pages.ConfirmModel
+@{
+    ViewData["Title"] = "Confirm your account";
+}
+<h1>Confirm your account</h1>
+@if (Model.IsConfirmed)
+{
+    <p class="ok" id="confirmed">Your account is confirmed.</p>
+    <p><a href="/">Back to search</a></p>
+}
+else
+{
+    <p>There is no real email server, so the email appears below instead of in your inbox.</p>
+    @if (Model.Email is { } mail)
+    {
+        <div class="email" id="email-box">
+            To: @mail.Email<br />
+            Subject: Confirm your CatchIt account<br />
+            Your confirmation code is: <code id="code">@mail.Code</code>
+        </div>
+    }
+    <form method="post" asp-page-handler="Confirm">
+        <label for="codebox">Confirmation code</label>
+        <input id="codebox" name="Code" autocomplete="off" />
+        <button type="submit" id="confirm">Confirm</button>
+    </form>
+    <form method="post" asp-page-handler="Send">
+        <button type="submit" id="send">Send me a new code</button>
+    </form>
+    @if (Model.Error is { } error)
+    {
+        <p class="error" id="error" role="alert">@error</p>
+    }
+}
