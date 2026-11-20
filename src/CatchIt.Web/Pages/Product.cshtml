@@ -1,0 +1,103 @@
+@page
+@using CatchIt.Core.Pricing
+@model CatchIt.Web.Pages.ProductModel
+@{
+    var d = Model.Detail!;
+    var l = d.Listing;
+    ViewData["Title"] = l.ProductName;
+}
+<h1 id="name">@l.ProductName @if (l.OnSale) { <span class="sale" id="on-sale">On Sale</span> }</h1>
+<p>
+    @l.BrandName (@Format.Tier(l.QualityTier)) &middot; sold by @l.MarketplaceName, seller rating @l.SellerRating.ToString("0.0")
+    @if (!string.IsNullOrEmpty(d.Category)) { <text>&middot; @d.Category</text> }
+</p>
+<p><strong id="price">@Format.Money(l.CurrentPrice)</strong>
+    @if (d.ProductRating is { } rating) { <text>&middot; rated @rating.ToString("0.0") of 5 (@d.RatingCount reviews)</text> }
+</p>
+<ul id="facts">
+    @if (d.Extremes is { } e)
+    {
+        <li id="lowest">Lowest ever: @Format.Money(e.LowPrice) on @Format.Date(e.LowDate)</li>
+        <li id="highest">Highest ever: @Format.Money(e.HighPrice) on @Format.Date(e.HighDate)</li>
+    }
+    <li id="average">90-day average: @(d.Average90 is { } avg ? Format.Money(avg) : PriceChartMath.NotEnoughHistoryMessage)</li>
+</ul>
+
+<h2>Price history</h2>
+<p id="ranges">
+    @foreach (var r in new[] { ChartRange.ThreeMonths, ChartRange.SixMonths, ChartRange.TwelveMonths, ChartRange.All })
+    {
+        if (r == Model.SelectedRange)
+        {
+            <strong>@ProductModel.Label(r)</strong>
+        }
+        else
+        {
+            <a href="/Product?id=@Model.Id&range=@ProductModel.Key(r)">@ProductModel.Label(r)</a>
+        }
+        <text> </text>
+    }
+</p>
+@if (Model.Chart is { } chart)
+{
+    @Html.Raw(chart)
+}
+else
+{
+    <p id="no-chart">@PriceChartMath.NotEnoughHistoryMessage</p>
+}
+
+<h2>Watchlist</h2>
+@if (Model.CanWatch)
+{
+    @if (Model.IsWatching)
+    {
+        <form method="post" asp-page-handler="Unwatch" asp-route-id="@Model.Id" asp-route-range="@Model.Range" class="inline">
+            <button type="submit" id="unwatch">Remove from watchlist</button>
+        </form>
+        <form method="post" asp-page-handler="Target" asp-route-id="@Model.Id" asp-route-range="@Model.Range">
+            <label for="target">Target price</label>
+            <input id="target" name="TargetPrice" inputmode="decimal" value="@(Model.Target?.ToString("0.00"))" />
+            <button type="submit" id="save-target">Save target</button>
+        </form>
+    }
+    else
+    {
+        <form method="post" asp-page-handler="Watch" asp-route-id="@Model.Id" asp-route-range="@Model.Range">
+            <button type="submit" id="watch">Add to watchlist</button>
+        </form>
+    }
+    @if (Model.Message is { } message)
+    {
+        <p id="message" class="@(Model.MessageIsError ? "error" : "ok")">@message</p>
+    }
+}
+else
+{
+    <p id="login-hint"><a href="/Login?returnUrl=@Uri.EscapeDataString("/Product?id=" + Model.Id)">Log in</a> to save this product to a watchlist.</p>
+}
+
+<h2>Alternatives</h2>
+@if (d.Alternatives.Count == 0)
+{
+    <p id="no-alternatives">No alternatives to suggest for this product.</p>
+}
+else
+{
+    <table id="alternatives">
+        <thead><tr><th>Product</th><th>Brand</th><th>Marketplace</th><th>Price</th><th>Why</th></tr></thead>
+        <tbody>
+        @foreach (var a in d.Alternatives)
+        {
+            <tr>
+                <td><a href="/Product?id=@a.ListingId">@a.ProductName</a></td>
+                <td>@a.BrandName (@Format.Tier(a.QualityTier))</td>
+                <td>@a.MarketplaceName</td>
+                <td>@Format.Money(a.Price)</td>
+                <td>@string.Join(", ", a.Tags)</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+<p><a href="/">Back to search</a></p>
