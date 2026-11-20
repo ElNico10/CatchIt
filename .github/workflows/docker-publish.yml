@@ -15,6 +15,8 @@ concurrency:
 
 jobs:
   publish:
+    # Skipped (not failed) until the Docker Hub variable exists, so main stays green before setup.
+    if: vars.DOCKERHUB_USERNAME != ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
